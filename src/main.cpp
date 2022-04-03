@@ -25,6 +25,65 @@
 const char* ssid = WLAN_SSID;
 const char* password = WLAN_PASSWORD;
 
+typedef enum
+{
+    CONNECTION_TYPE_NONE,
+    CONNECTION_TYPE_WS,
+} CONNECTION_TYPE;
+
+typedef struct
+{
+    CONNECTION_TYPE connectionType;
+    AsyncWebSocketClient *wsClient;
+} CONNECTION_DATA;
+
+static CONNECTION_DATA connectionData[] = {
+    {CONNECTION_TYPE_NONE, nullptr},
+    {CONNECTION_TYPE_NONE, nullptr},
+    {CONNECTION_TYPE_NONE, nullptr},
+    {CONNECTION_TYPE_NONE, nullptr}
+};
+static uint16_t maxConnections = (uint16_t)(sizeof(connectionData) / sizeof(CONNECTION_DATA));
+
+int16_t addConnection(AsyncWebSocketClient *wsClient) {
+  for(uint16_t i = 0; i < maxConnections; i++) {
+    if(connectionData[i].connectionType == CONNECTION_TYPE_NONE) {
+      connectionData[i].connectionType = CONNECTION_TYPE_WS;
+      connectionData[i].wsClient = wsClient;
+      return i;
+    }
+  }
+  return -1;
+}
+
+AsyncWebSocketClient *getWebsocketClient(int16_t index) {
+  return connectionData[index].wsClient;
+}
+
+
+int16_t getConnectionIndex(AsyncWebSocketClient const *wsClient) {
+  for(uint16_t i = 0; i < maxConnections; i++) {
+    if(connectionData[i].wsClient == wsClient) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+void removeConnection(int16_t index) {
+    connectionData[index].connectionType = CONNECTION_TYPE_NONE;
+    connectionData[index].wsClient = nullptr;
+}
+
+void removeConnection(AsyncWebSocketClient const *wsClient) {
+  for(uint16_t i = 0; i < maxConnections; i++) {
+    if(connectionData[i].wsClient == wsClient) {
+      removeConnection(i);
+      return;
+    }
+  }
+}
+
 ATCommands AT; // create an instance of the class
 String str1;
 String str2;
@@ -59,7 +118,7 @@ ArduinoOTA.setHostname(MDNS_HOSTNAME);
 AsyncWebServer webserver(80);
 AsyncWebSocket ws("/ws");
 
-AsyncWebSocketClient *lastClient = nullptr;
+int16_t passthroughConnectionIndex = -1;
 
 void handleWebSocketMessage(void *arg, uint8_t *data, size_t len, uint16_t clientId) {
   AwsFrameInfo *info = (AwsFrameInfo*)arg;
@@ -76,19 +135,28 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len, uint16_t clien
 
 void onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type,
              void *arg, uint8_t *data, size_t len) {
+  int16_t connectionIndex = -1;
   switch (type) {
     case WS_EVT_CONNECT:
-      AT.serial->print(client->id());
+      connectionIndex = addConnection(client);
+      if(connectionIndex < 0) {
+        client->close();
+        break;
+      }
+      AT.serial->print(connectionIndex);
       AT.serial->println(F(",CONNECTED"));
-      lastClient = client;
       break;
     case WS_EVT_DISCONNECT:
-      AT.serial->print(client->id());
-      AT.serial->println(F(",CLOSED"));
-      lastClient = nullptr;
+      connectionIndex = getConnectionIndex(client);
+      if(connectionIndex > 0) {
+        AT.serial->print(connectionIndex);
+        AT.serial->println(F(",CLOSED"));
+        removeConnection(connectionIndex);
+      }
       break;
     case WS_EVT_DATA:
-      handleWebSocketMessage(arg, data, len, client->id());
+      connectionIndex = getConnectionIndex(client);
+      handleWebSocketMessage(arg, data, len, connectionIndex);
       break;
     case WS_EVT_PONG:
     case WS_EVT_ERROR:
@@ -120,15 +188,15 @@ AT_COMMAND_RETURN_TYPE printEspInfo(ATCommands *sender)
 
 AT_COMMAND_RETURN_TYPE passthrough(ATCommands *sender)
 {
-    // sender->next() is NULL terminated ('\0') if there are no more parameters
-    // so check for that or a length of 0.
-    if(lastClient != nullptr) {
-      lastClient->text(sender->getBuffer());
+    if(passthroughConnectionIndex >= 0) {
+      auto client = getWebsocketClient(passthroughConnectionIndex);
+      if(client == nullptr) {
+        return -1;
+      }
+      client->text(sender->getBuffer());
     }
-    Serial.println(F("BUFFER START"));
-    Serial.println(sender->getBuffer());
-    Serial.println(F("BUFFER END"));
-    return 0; // tells ATCommands to print OK!
+    passthroughConnectionIndex = -1;
+    return 0;
 }
 
 AT_COMMAND_RETURN_TYPE printVersion(ATCommands *sender)
@@ -178,10 +246,14 @@ AT_COMMAND_RETURN_TYPE startSend(ATCommands *sender)
     if(payloadConnection < 0 || payloadLength <=0) {
       return -1;
     }
+    auto connection = getWebsocketClient(payloadConnection);
+    if(connection == nullptr) {
+      return -1;
+    }
+    passthroughConnectionIndex = payloadConnection;
     return payloadLength;
 }
 
-// declare the commands in an array to be passed during initialization
 static at_command_t commands[] = {
     {"+GMR", printVersion, nullptr, nullptr, nullptr, nullptr},
     {"+CIFSR", printWifiInfo, nullptr, nullptr, nullptr, nullptr},
@@ -199,7 +271,7 @@ static at_command_t commands[] = {
     {"E0", disableEchoMode, nullptr, nullptr, nullptr, nullptr},
     {"E1", enableEchoMode, nullptr, nullptr, nullptr, nullptr},
     {"+ESPINFO", printEspInfo, nullptr, nullptr, nullptr, nullptr},
-    {"", ok, nullptr, nullptr, nullptr, nullptr},
+    {"", ok, nullptr, nullptr, nullptr, nullptr}
 };
 
 void setup()
