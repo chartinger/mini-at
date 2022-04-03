@@ -1,85 +1,108 @@
+#include "./config.h"
 #include <Arduino.h>
-/*
- This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.
-*/
 
-/*
-  Based on the ATCommands example
-*/
+#ifdef ESP32
+#include <WiFi.h>
+#endif
+#ifdef ESP8266
+#include <ESP8266WiFi.h>
+#endif
+
+#ifdef WEBSOCKET_ENABLED
+  #ifdef ESP32
+  #include <AsyncTCP.h>
+  #endif
+  #ifdef ESP8266
+  #include <ESPAsyncTCP.h>
+  #endif
+  #include <ESPAsyncWebServer.h>
+#endif
+
 #include <ATCommands.h>
-#define AT_COMMANDS_DEBUG
+
 #define WORKING_BUFFER_SIZE 255 // The size of the working buffer (ie: the expected length of the input string)
+
+const char* ssid = WLAN_SSID;
+const char* password = WLAN_PASSWORD;
 
 ATCommands AT; // create an instance of the class
 String str1;
 String str2;
+int16_t payloadConnection = -1;
 
-/**
- * @brief at_run_cmd_print
- * This is called when AT+PRINT is sent and is intended to invoke a function that does
- * not require parameters or has already had them set via WRITE (see other examples)
- * @param sender 
- * @return true 
- * @return false 
- */
-AT_COMMAND_RETURN_TYPE at_run_cmd_print(ATCommands *sender)
-{
-    if (str1.length() > 0 && str2.length() > 0)
-    {
-        sender->serial->print(str1);
-        sender->serial->print(" ");
-        sender->serial->println(str2);
-        return 0; // tells ATCommands to print OK
-    }
-    return -1;
+void setupWifi() {
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+  }
+#ifdef MDNS_HOSTNAME
+  MDNS.begin(MDNS_HOSTNAME);
+#endif
+
+#ifdef MDNS_HOSTNAME
+#ifdef OTA_ENABLED
+ArduinoOTA.setHostname(MDNS_HOSTNAME);
+#endif
+#endif
+
+#ifdef OTA_ENABLED
+#ifdef OTA_PASSWORD
+  ArduinoOTA.setPassword((const char *)OTA_PASSWORD);
+#endif
+  ArduinoOTA.begin();
+#endif
 }
 
-/**
- * @brief at_test_cmd_print
- * This is called when a test command is received (AT+TEST=?) and is usually invoked when
- * information needs to be retrieved (such as a list of SSIDs for WIFI) or other tests
- * not requiring parameters.
- * @param sender 
- * @return true 
- * @return false 
- */
-AT_COMMAND_RETURN_TYPE at_test_cmd_print(ATCommands *sender)
-{
-    sender->serial->print(sender->command);
-    Serial.println(F("=<TEXT:STRING[RO]>"));
-    Serial.println(F("Prints \"Hello World\" to the terminal"));
-    return 0; // tells ATCommands to print OK
+#ifdef WEBSOCKET_ENABLED
+AsyncWebServer webserver(80);
+AsyncWebSocket ws("/ws");
+
+AsyncWebSocketClient *lastClient = nullptr;
+
+void handleWebSocketMessage(void *arg, uint8_t *data, size_t len, uint16_t clientId) {
+  AwsFrameInfo *info = (AwsFrameInfo*)arg;
+  if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
+    data[len] = 0;
+    AT.serial->print(F("IPD,"));
+    AT.serial->print(clientId);
+    AT.serial->print(F(","));
+    AT.serial->print(len);
+    AT.serial->print(F(":"));
+    AT.serial->println((char*)data);
+  }
 }
 
-/**
- * @brief at_write_cmd_print
- * This is called when a command is received (AT+TEST=param1,param2) and is usually invoked when
- * information needs to be recorded (such as variables being set etc).  The sender object
- * will provide the list of parameters.
- * not requiring parameters.
- * @param sender 
- * @return true 
- * @return false 
- */
-AT_COMMAND_RETURN_TYPE at_write_cmd_print(ATCommands *sender)
-{
-    // sender->next() is NULL terminated ('\0') if there are no more parameters
-    // so check for that or a length of 0.
-    str1 = sender->next();
-    str2 = sender->next();
-    Serial.println(str1);
-    Serial.println(str2);
-    return 0; // tells ATCommands to print OK
+void onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type,
+             void *arg, uint8_t *data, size_t len) {
+  switch (type) {
+    case WS_EVT_CONNECT:
+      AT.serial->print(client->id());
+      AT.serial->println(F(",CONNECTED"));
+      lastClient = client;
+      break;
+    case WS_EVT_DISCONNECT:
+      AT.serial->print(client->id());
+      AT.serial->println(F(",CLOSED"));
+      lastClient = nullptr;
+      break;
+    case WS_EVT_DATA:
+      handleWebSocketMessage(arg, data, len, client->id());
+      break;
+    case WS_EVT_PONG:
+    case WS_EVT_ERROR:
+      break;
+  }
 }
+
+
+void setupWebsocket() {
+  ws.onEvent(onWebSocketEvent);
+  webserver.addHandler(&ws);
+  webserver.begin();
+}
+#endif
 
 AT_COMMAND_RETURN_TYPE ping(ATCommands *sender)
 {
@@ -89,40 +112,105 @@ AT_COMMAND_RETURN_TYPE ping(ATCommands *sender)
     return 2; // tells ATCommands to print OK
 }
 
+AT_COMMAND_RETURN_TYPE printEspInfo(ATCommands *sender)
+{
+    sender->serial->println(ESP.getFreeHeap());
+    return 0;
+}
+
 AT_COMMAND_RETURN_TYPE passthrough(ATCommands *sender)
 {
     // sender->next() is NULL terminated ('\0') if there are no more parameters
     // so check for that or a length of 0.
+    if(lastClient != nullptr) {
+      lastClient->text(sender->getBuffer());
+    }
     Serial.println(F("BUFFER START"));
     Serial.println(sender->getBuffer());
     Serial.println(F("BUFFER END"));
     return 0; // tells ATCommands to print OK!
 }
 
+AT_COMMAND_RETURN_TYPE printVersion(ATCommands *sender)
+{
+    sender->serial->println(F("AT mini custom firmware"));
+    return 0;
+}
+
+AT_COMMAND_RETURN_TYPE printWifiInfo(ATCommands *sender)
+{
+    sender->serial->print(F("+CIFSR:STAIP,"));
+    sender->serial->println(WiFi.localIP());
+    sender->serial->print(F("+CIFSR:STAMAC,"));
+    sender->serial->println(WiFi.macAddress());
+    return 0;
+}
+
+AT_COMMAND_RETURN_TYPE ok(ATCommands *sender)
+{
+    return 0;
+}
+
+AT_COMMAND_RETURN_TYPE enableEchoMode(ATCommands *sender)
+{
+    sender->setEchoMode(true);
+    return 0;
+}
+
+AT_COMMAND_RETURN_TYPE disableEchoMode(ATCommands *sender)
+{
+    sender->setEchoMode(false);
+    return 0;
+}
+
+AT_COMMAND_RETURN_TYPE startSend(ATCommands *sender)
+{
+    str1 = sender->next();
+    if (str1.length() == 0) {
+      return -1;
+    }
+    str2 = sender->next();
+    if (str2.length() == 0) {
+      return -1;
+    }
+    payloadConnection = str1.toInt();
+    int16_t payloadLength = str2.toInt();
+    if(payloadConnection < 0 || payloadLength <=0) {
+      return -1;
+    }
+    return payloadLength;
+}
+
 // declare the commands in an array to be passed during initialization
 static at_command_t commands[] = {
-    {"+PRINT", at_run_cmd_print, at_test_cmd_print, nullptr, at_write_cmd_print, nullptr},
-    {"+GMR", ping, nullptr, nullptr, nullptr, nullptr},
-    {"+CIFSR", ping, nullptr, nullptr, nullptr, nullptr},
-    {"+CIPMUX", ping, nullptr, nullptr, nullptr, nullptr},
-    {"+CIPRECVMODE", ping, nullptr, nullptr, nullptr, nullptr},
-    {"+CIPSERVER", ping, nullptr, nullptr, nullptr, nullptr},
-    {"+CIPSEND", ping, nullptr, nullptr, nullptr, nullptr},
-    {"+CWHOSTNAME", ping, nullptr, nullptr, nullptr, nullptr},
-    {"+CWJAP", ping, nullptr, nullptr, nullptr, nullptr},
-    {"+CWJAP_CUR", ping, nullptr, nullptr, nullptr, nullptr},
-    {"+CWMODE", ping, nullptr, nullptr, nullptr, nullptr},
-    {"+CWSAP", ping, nullptr, nullptr, nullptr, nullptr},
-    {"+MDNS", ping, nullptr, nullptr, nullptr, nullptr},
+    {"+GMR", printVersion, nullptr, nullptr, nullptr, nullptr},
+    {"+CIFSR", printWifiInfo, nullptr, nullptr, nullptr, nullptr},
+    // {"+CIPMUX", ping, nullptr, nullptr, nullptr, nullptr},
+    // {"+CIPRECVMODE", ping, nullptr, nullptr, nullptr, nullptr},
+    // {"+CIPSERVER", ping, nullptr, nullptr, nullptr, nullptr},
+    // {"+CWHOSTNAME", ping, nullptr, nullptr, nullptr, nullptr},
+    // {"+CWJAP", ping, nullptr, nullptr, nullptr, nullptr},
+    // {"+CWJAP_CUR", ping, nullptr, nullptr, nullptr, nullptr},
+    // {"+CWMODE", ping, nullptr, nullptr, nullptr, nullptr},
+    // {"+CWSAP", ping, nullptr, nullptr, nullptr, nullptr},
+    // {"+MDNS", ping, nullptr, nullptr, nullptr, nullptr},
+    {"+CIPSEND", nullptr, nullptr, nullptr, startSend, passthrough},
     {"+RST", ping, nullptr, nullptr, nullptr, passthrough},
+    {"E0", disableEchoMode, nullptr, nullptr, nullptr, nullptr},
+    {"E1", enableEchoMode, nullptr, nullptr, nullptr, nullptr},
+    {"+ESPINFO", printEspInfo, nullptr, nullptr, nullptr, nullptr},
+    {"", ok, nullptr, nullptr, nullptr, nullptr},
 };
 
 void setup()
 {
     // put your setup code here, to run once:
     Serial.begin(115200);
-
+    setupWifi();
     AT.begin(&Serial, commands, sizeof(commands), WORKING_BUFFER_SIZE);
+#ifdef WEBSOCKET_ENABLED
+    setupWebsocket();
+#endif
     Serial.println("STARTING");
 }
 
