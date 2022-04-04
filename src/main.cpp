@@ -25,6 +25,10 @@
 const char* ssid = WLAN_SSID;
 const char* password = WLAN_PASSWORD;
 
+#define RX 16
+#define TX 17
+
+
 typedef enum
 {
     CONNECTION_TYPE_NONE,
@@ -124,7 +128,7 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len, uint16_t clien
   AwsFrameInfo *info = (AwsFrameInfo*)arg;
   if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
     data[len] = 0;
-    AT.serial->print(F("IPD,"));
+    AT.serial->print(F("+IPD,"));
     AT.serial->print(clientId);
     AT.serial->print(F(","));
     AT.serial->print(len);
@@ -148,7 +152,7 @@ void onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsE
       break;
     case WS_EVT_DISCONNECT:
       connectionIndex = getConnectionIndex(client);
-      if(connectionIndex > 0) {
+      if(connectionIndex >= 0) {
         AT.serial->print(connectionIndex);
         AT.serial->println(F(",CLOSED"));
         removeConnection(connectionIndex);
@@ -207,8 +211,9 @@ AT_COMMAND_RETURN_TYPE printVersion(ATCommands *sender)
 
 AT_COMMAND_RETURN_TYPE printWifiInfo(ATCommands *sender)
 {
-    sender->serial->print(F("+CIFSR:STAIP,"));
-    sender->serial->println(WiFi.localIP());
+    sender->serial->print(F("+CIFSR:STAIP,\""));
+    sender->serial->print(WiFi.localIP());
+    sender->serial->print(F("\""));
     sender->serial->print(F("+CIFSR:STAMAC,"));
     sender->serial->println(WiFi.macAddress());
     return 0;
@@ -278,8 +283,9 @@ void setup()
 {
     // put your setup code here, to run once:
     Serial.begin(115200);
+    Serial2.begin(115200, SERIAL_8N1, RX, TX);
     setupWifi();
-    AT.begin(&Serial, commands, sizeof(commands), WORKING_BUFFER_SIZE);
+    AT.begin(&Serial2, commands, sizeof(commands), WORKING_BUFFER_SIZE);
 #ifdef WEBSOCKET_ENABLED
     setupWebsocket();
 #endif
@@ -290,4 +296,5 @@ void loop()
 {
     // put your main code here, to run repeatedly:
     AT.update();
+    ws.cleanupClients();
 }
