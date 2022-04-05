@@ -33,19 +33,21 @@ typedef enum
 {
     CONNECTION_TYPE_NONE,
     CONNECTION_TYPE_WS,
+    CONNECTION_TYPE_TCP,
 } CONNECTION_TYPE;
 
 typedef struct
 {
     CONNECTION_TYPE connectionType;
     AsyncWebSocketClient *wsClient;
+    AsyncClient *tcpClient; 
 } CONNECTION_DATA;
 
 static CONNECTION_DATA connectionData[] = {
-    {CONNECTION_TYPE_NONE, nullptr},
-    {CONNECTION_TYPE_NONE, nullptr},
-    {CONNECTION_TYPE_NONE, nullptr},
-    {CONNECTION_TYPE_NONE, nullptr}
+    {CONNECTION_TYPE_NONE, nullptr, nullptr},
+    {CONNECTION_TYPE_NONE, nullptr, nullptr},
+    {CONNECTION_TYPE_NONE, nullptr, nullptr},
+    {CONNECTION_TYPE_NONE, nullptr, nullptr}
 };
 static uint16_t maxConnections = (uint16_t)(sizeof(connectionData) / sizeof(CONNECTION_DATA));
 
@@ -60,10 +62,24 @@ int16_t addConnection(AsyncWebSocketClient *wsClient) {
   return -1;
 }
 
+int16_t addConnection(AsyncClient *tcpClient) {
+  for(uint16_t i = 0; i < maxConnections; i++) {
+    if(connectionData[i].connectionType == CONNECTION_TYPE_NONE) {
+      connectionData[i].connectionType = CONNECTION_TYPE_TCP;
+      connectionData[i].tcpClient = tcpClient;
+      return i;
+    }
+  }
+  return -1;
+}
+
 AsyncWebSocketClient *getWebsocketClient(int16_t index) {
   return connectionData[index].wsClient;
 }
 
+AsyncClient *getTcpClient(int16_t index) {
+  return connectionData[index].tcpClient;
+}
 
 int16_t getConnectionIndex(AsyncWebSocketClient const *wsClient) {
   for(uint16_t i = 0; i < maxConnections; i++) {
@@ -74,9 +90,19 @@ int16_t getConnectionIndex(AsyncWebSocketClient const *wsClient) {
   return -1;
 }
 
+int16_t getConnectionIndex(AsyncClient const *tcpClient) {
+  for(uint16_t i = 0; i < maxConnections; i++) {
+    if(connectionData[i].tcpClient == tcpClient) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 void removeConnection(int16_t index) {
     connectionData[index].connectionType = CONNECTION_TYPE_NONE;
     connectionData[index].wsClient = nullptr;
+    connectionData[index].tcpClient = nullptr;
 }
 
 void removeConnection(AsyncWebSocketClient const *wsClient) {
@@ -88,6 +114,14 @@ void removeConnection(AsyncWebSocketClient const *wsClient) {
   }
 }
 
+void removeConnection(AsyncClient const *tcpClient) {
+  for(uint16_t i = 0; i < maxConnections; i++) {
+    if(connectionData[i].tcpClient == tcpClient) {
+      removeConnection(i);
+      return;
+    }
+  }
+}
 ATCommands AT; // create an instance of the class
 String str1;
 String str2;
@@ -194,10 +228,23 @@ AT_COMMAND_RETURN_TYPE passthrough(ATCommands *sender)
 {
     if(passthroughConnectionIndex >= 0) {
       auto client = getWebsocketClient(passthroughConnectionIndex);
-      if(client == nullptr) {
-        return -1;
+      if(client != nullptr) {
+        Serial.println(F("Sending via WS"));
+        client->text(sender->getBuffer());
+        passthroughConnectionIndex = -1;
+        return 0;
       }
-      client->text(sender->getBuffer());
+      auto tcpClient = getTcpClient(passthroughConnectionIndex);
+      if(tcpClient != nullptr) {
+        Serial.println(F("Sending via TCP"));
+        tcpClient->write(sender->getBuffer().c_str());
+        passthroughConnectionIndex = -1;
+        return 0;
+      }
+      Serial.print(F("NO PASSTHROUGH HANDLER: "));
+      Serial.println(passthroughConnectionIndex);
+      passthroughConnectionIndex = -1;
+      return -1;
     }
     passthroughConnectionIndex = -1;
     return 0;
@@ -251,12 +298,49 @@ AT_COMMAND_RETURN_TYPE startSend(ATCommands *sender)
     if(payloadConnection < 0 || payloadLength <=0) {
       return -1;
     }
-    auto connection = getWebsocketClient(payloadConnection);
-    if(connection == nullptr) {
-      return -1;
-    }
+    // auto connection = getWebsocketClient(payloadConnection);
+    // if(connection == nullptr) {
+    //   return -1;
+    // }
     passthroughConnectionIndex = payloadConnection;
     return payloadLength;
+}
+
+AsyncServer tcpServer(9999);
+
+void setupTcp() {
+  tcpServer.onClient([](void *s, AsyncClient* c) {
+    if(c == NULL)
+      return;
+      uint16_t connectionIndex = addConnection(c);
+      AT.serial->print(connectionIndex);
+      AT.serial->println(F(",CONNECTED"));
+    c->onDisconnect([](void *r, AsyncClient* c) {
+      uint16_t connectionIndex = getConnectionIndex(c);
+      AT.serial->print(connectionIndex);
+      AT.serial->println(F(",CLOSED"));
+      removeConnection(c);
+      delete c;
+    }, nullptr);
+    c->onData([](void *r, AsyncClient* c, void *buf, size_t len) {
+      uint16_t clientId = getConnectionIndex(c);
+      ((char*)buf)[len-1] = '\0';
+      Serial.print("TCP IN:");
+      Serial.println(len);
+      Serial.println((char*)buf);
+      AT.serial->print(F("+IPD,"));
+      AT.serial->print(clientId);
+      AT.serial->print(F(","));
+      AT.serial->print(len);
+      AT.serial->print(F(":"));
+      AT.serial->println((char*)buf);
+    }, nullptr);
+  }, nullptr);
+  tcpServer.begin();
+}
+
+void loopTcp() {
+
 }
 
 static at_command_t commands[] = {
@@ -289,6 +373,7 @@ void setup()
 #ifdef WEBSOCKET_ENABLED
     setupWebsocket();
 #endif
+    setupTcp();
     Serial.println("STARTING");
 }
 
@@ -297,4 +382,5 @@ void loop()
     // put your main code here, to run repeatedly:
     AT.update();
     ws.cleanupClients();
+    loopTcp();
 }
