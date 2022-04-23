@@ -8,6 +8,13 @@
 #include <ESP8266WiFi.h>
 #endif
 
+#ifdef ESP32
+#define CsSerial Serial2
+#endif
+#ifdef ESP8266
+#define CsSerial Serial1
+#endif
+
 #ifdef WEBSOCKET_ENABLED
   #ifdef ESP32
   #include <AsyncTCP.h>
@@ -205,9 +212,14 @@ static at_command_t commands[] = {
 void setup()
 {
     Serial.begin(115200);
-    Serial2.begin(115200, SERIAL_8N1, RX, TX);
+    #ifdef ESP32
+      CsSerial.begin(115200, SERIAL_8N1, RX, TX);
+    #endif
+    #ifdef ESP8266
+      CsSerial.begin(115200);
+    #endif
     setupWifi();
-    AT.begin(&Serial2, commands, sizeof(commands), WORKING_BUFFER_SIZE);
+    AT.begin(&CsSerial, commands, sizeof(commands), WORKING_BUFFER_SIZE);
 #ifdef WEBSOCKET_ENABLED
     wsService.setup();
 #endif
