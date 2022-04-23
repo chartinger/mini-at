@@ -1,11 +1,11 @@
-#ifndef AT_CONNECTION_MANAGER_H
-#define AT_CONNECTION_MANAGER_H
+#ifndef CS_AT_CONNECTION_H
+#define CS_AT_CONNECTION_H
 
 #include <ATCommands.h>
 
-class AtConnectionManager {
+class CsAtConnection {
   public:
-    AtConnectionManager(ATCommands *AT);
+    CsAtConnection(ATCommands *AT);
     void sendData(uint16_t connectionId, size_t len, uint8_t *data);
     void sendDisconnect(uint16_t connectionId);
     void sendConnect(uint16_t connectionId);
@@ -14,10 +14,10 @@ class AtConnectionManager {
     ATCommands *AT;
 };
 
-AtConnectionManager::AtConnectionManager(ATCommands *AtCommands)
+CsAtConnection::CsAtConnection(ATCommands *AtCommands)
   : AT(AtCommands) {}
 
-void AtConnectionManager::sendData(uint16_t connectionId, size_t len, uint8_t *data) {
+void CsAtConnection::sendData(uint16_t connectionId, size_t len, uint8_t *data) {
     AT->serial->print(F("+IPD,"));
     AT->serial->print(connectionId);
     AT->serial->print(F(","));
@@ -27,12 +27,12 @@ void AtConnectionManager::sendData(uint16_t connectionId, size_t len, uint8_t *d
     AT->serial->println();
 }
 
-void AtConnectionManager::sendDisconnect(uint16_t connectionId) {
+void CsAtConnection::sendDisconnect(uint16_t connectionId) {
   AT->serial->print(connectionId);
   AT->serial->println(F(",CLOSED"));
 }
 
-void AtConnectionManager::sendConnect(uint16_t connectionId) {
+void CsAtConnection::sendConnect(uint16_t connectionId) {
   AT->serial->print(connectionId);
   AT->serial->println(F(",CONNECTED"));
 }
