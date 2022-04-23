@@ -42,6 +42,9 @@
 
 #include "TcpServerService.hpp"
 
+#ifdef MQTT_ENABLED
+#include "MqttClientService.hpp"
+#endif
 
 #define WORKING_BUFFER_SIZE 255 // The size of the working buffer (ie: the expected length of the input string)
 
@@ -50,6 +53,8 @@ const char* password = WLAN_PASSWORD;
 
 #define RX 16
 #define TX 17
+
+WiFiClient wifiClient;
 
 ATCommands AT; // create an instance of the class
 String str1;
@@ -89,6 +94,10 @@ int16_t passthroughConnectionIndex = -1;
 WsServerService wsService(&csAtConnection, &connectionPool, 80);
 #endif
 TcpServerService tcpService(&csAtConnection, &connectionPool, 9999);
+
+#ifdef MQTT_ENABLED
+MqttClientService mqttService(&csAtConnection, &connectionPool, &wifiClient);
+#endif
 
 
 AT_COMMAND_RETURN_TYPE ping(ATCommands *sender)
@@ -203,6 +212,9 @@ void setup()
     wsService.setup();
 #endif
     tcpService.setup();
+#ifdef MQTT_ENABLED
+    mqttService.setup();
+#endif
     Serial.println("STARTING");
 }
 
@@ -215,5 +227,8 @@ void loop()
   tcpService.loop();
   #ifdef OTA_ENABLED
   ArduinoOTA.handle();
+  #endif
+  #ifdef MQTT_ENABLED
+  mqttService.loop();
   #endif
 }
