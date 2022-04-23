@@ -23,8 +23,8 @@
 #include "CsAtConnection.hpp"
 #include "ConnectionPool.hpp"
 
-#ifdef WEBSOCKET_ENABLED
-  #include "WsServerService.hpp"
+#ifdef OTA_ENABLED
+  #include <ArduinoOTA.h>
 #endif
 
 #ifdef MDNS_HOSTNAME
@@ -35,6 +35,13 @@
   #include <ESP8266mDNS.h> 
   #endif
 #endif
+
+#ifdef WEBSOCKET_ENABLED
+  #include "WsServerService.hpp"
+#endif
+
+#include "TcpServerService.hpp"
+
 
 #define WORKING_BUFFER_SIZE 255 // The size of the working buffer (ie: the expected length of the input string)
 
@@ -81,11 +88,13 @@ int16_t passthroughConnectionIndex = -1;
 #ifdef WEBSOCKET_ENABLED
 WsServerService wsService(&csAtConnection, &connectionPool, 80);
 #endif
+TcpServerService tcpService(&csAtConnection, &connectionPool, 9999);
+
 
 AT_COMMAND_RETURN_TYPE ping(ATCommands *sender)
 {
     Serial.println(F("pong"));
-    return 0; // tells ATCommands to print OK
+    return 0;
 }
 
 AT_COMMAND_RETURN_TYPE printEspInfo(ATCommands *sender)
@@ -164,31 +173,6 @@ AT_COMMAND_RETURN_TYPE startSend(ATCommands *sender)
     return payloadLength;
 }
 
-// AsyncServer tcpServer(9999);
-
-// void setupTcp() {
-//   tcpServer.onClient([](void *s, AsyncClient* c) {
-//     if(c == NULL)
-//       return;
-//       uint16_t connectionIndex = addConnection(c);
-//       atConnectionManager.sendConnect(connectionIndex);
-//     c->onDisconnect([](void *r, AsyncClient* c) {
-//       uint16_t connectionIndex = getConnectionIndex(c);
-//       atConnectionManager.sendDisconnect(connectionIndex);
-//       removeConnection(c);
-//       delete c;
-//     }, nullptr);
-//     c->onData([](void *r, AsyncClient* c, void *buf, size_t len) {
-//       uint16_t clientId = getConnectionIndex(c);
-//       Serial.print("TCP IN:");
-//       Serial.println(len);
-//       Serial.println((char*)buf);
-//       atConnectionManager.sendData(clientId, len, (uint8_t*)buf);
-//     }, nullptr);
-//   }, nullptr);
-//   tcpServer.begin();
-// }
-
 static at_command_t commands[] = {
     {"+GMR", printVersion, nullptr, nullptr, nullptr, nullptr},
     {"+CIFSR", printWifiInfo, nullptr, nullptr, nullptr, nullptr},
@@ -211,23 +195,25 @@ static at_command_t commands[] = {
 
 void setup()
 {
-    // put your setup code here, to run once:
     Serial.begin(115200);
     Serial2.begin(115200, SERIAL_8N1, RX, TX);
     setupWifi();
     AT.begin(&Serial2, commands, sizeof(commands), WORKING_BUFFER_SIZE);
 #ifdef WEBSOCKET_ENABLED
-    // setupWebsocket();
     wsService.setup();
 #endif
-    // setupTcp();
+    tcpService.setup();
     Serial.println("STARTING");
 }
 
 void loop()
 {
-    AT.update();
-    #ifdef WEBSOCKET_ENABLED
-    wsService.loop();
-    #endif
+  AT.update();
+  #ifdef WEBSOCKET_ENABLED
+  wsService.loop();
+  #endif
+  tcpService.loop();
+  #ifdef OTA_ENABLED
+  ArduinoOTA.handle();
+  #endif
 }
