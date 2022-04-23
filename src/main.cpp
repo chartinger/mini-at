@@ -20,6 +20,8 @@
 
 #include <ATCommands.h>
 
+#include "./AtConnectionManager.hpp"
+
 #define WORKING_BUFFER_SIZE 255 // The size of the working buffer (ie: the expected length of the input string)
 
 const char* ssid = WLAN_SSID;
@@ -156,18 +158,14 @@ ArduinoOTA.setHostname(MDNS_HOSTNAME);
 AsyncWebServer webserver(80);
 AsyncWebSocket ws("/ws");
 
+AtConnectionManager atConnectionManager(&AT);
+
 int16_t passthroughConnectionIndex = -1;
 
 void handleWebSocketMessage(void *arg, uint8_t *data, size_t len, uint16_t clientId) {
   AwsFrameInfo *info = (AwsFrameInfo*)arg;
   if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
-    data[len] = 0;
-    AT.serial->print(F("+IPD,"));
-    AT.serial->print(clientId);
-    AT.serial->print(F(","));
-    AT.serial->print(len);
-    AT.serial->print(F(":"));
-    AT.serial->println((char*)data);
+    atConnectionManager.sendData(clientId, len, data);
   }
 }
 
@@ -181,14 +179,12 @@ void onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsE
         client->close();
         break;
       }
-      AT.serial->print(connectionIndex);
-      AT.serial->println(F(",CONNECTED"));
+      atConnectionManager.sendConnect(connectionIndex);
       break;
     case WS_EVT_DISCONNECT:
       connectionIndex = getConnectionIndex(client);
       if(connectionIndex >= 0) {
-        AT.serial->print(connectionIndex);
-        AT.serial->println(F(",CLOSED"));
+        atConnectionManager.sendDisconnect(connectionIndex);
         removeConnection(connectionIndex);
       }
       break;
@@ -212,10 +208,8 @@ void setupWebsocket() {
 
 AT_COMMAND_RETURN_TYPE ping(ATCommands *sender)
 {
-    // sender->next() is NULL terminated ('\0') if there are no more parameters
-    // so check for that or a length of 0.
     Serial.println(F("pong"));
-    return 2; // tells ATCommands to print OK
+    return 0; // tells ATCommands to print OK
 }
 
 AT_COMMAND_RETURN_TYPE printEspInfo(ATCommands *sender)
@@ -230,7 +224,7 @@ AT_COMMAND_RETURN_TYPE passthrough(ATCommands *sender)
       auto client = getWebsocketClient(passthroughConnectionIndex);
       if(client != nullptr) {
         Serial.println(F("Sending via WS"));
-        client->text(sender->getBuffer());
+        client->text(sender->getBuffer().c_str());
         passthroughConnectionIndex = -1;
         return 0;
       }
@@ -313,27 +307,19 @@ void setupTcp() {
     if(c == NULL)
       return;
       uint16_t connectionIndex = addConnection(c);
-      AT.serial->print(connectionIndex);
-      AT.serial->println(F(",CONNECTED"));
+      atConnectionManager.sendConnect(connectionIndex);
     c->onDisconnect([](void *r, AsyncClient* c) {
       uint16_t connectionIndex = getConnectionIndex(c);
-      AT.serial->print(connectionIndex);
-      AT.serial->println(F(",CLOSED"));
+      atConnectionManager.sendDisconnect(connectionIndex);
       removeConnection(c);
       delete c;
     }, nullptr);
     c->onData([](void *r, AsyncClient* c, void *buf, size_t len) {
       uint16_t clientId = getConnectionIndex(c);
-      ((char*)buf)[len-1] = '\0';
       Serial.print("TCP IN:");
       Serial.println(len);
       Serial.println((char*)buf);
-      AT.serial->print(F("+IPD,"));
-      AT.serial->print(clientId);
-      AT.serial->print(F(","));
-      AT.serial->print(len);
-      AT.serial->print(F(":"));
-      AT.serial->println((char*)buf);
+      atConnectionManager.sendData(clientId, len, (uint8_t*)buf);
     }, nullptr);
   }, nullptr);
   tcpServer.begin();
