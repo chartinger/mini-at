@@ -3,7 +3,7 @@
 CsAtConnection::CsAtConnection(ATCommands *AtCommands)
   : AT(AtCommands) {}
 
-void CsAtConnection::sendData(uint16_t connectionId, size_t len, uint8_t *data) {
+void CsAtConnection::sendData(uint16_t connectionId, size_t len, const uint8_t *data) {
     AT->serial->print(F("+IPD,"));
     AT->serial->print(connectionId);
     AT->serial->print(F(","));

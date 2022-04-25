@@ -21,6 +21,7 @@ int16_t ConnectionPool::addConnection(ClientService *clientService, void *client
 }
 
 void ConnectionPool::removeConnection(int16_t index) {
+  if((index < 0) || (index > maxPoolConnections - 1)) return;
   connectionPool[index].clientService = nullptr;
   connectionPool[index].clientServiceData = nullptr;
 }
