@@ -97,6 +97,11 @@ CsAtConnection csAtConnection(&AT);
 ConnectionPool connectionPool;
 int16_t passthroughConnectionIndex = -1;
 
+#ifdef BLE_ENABLED
+#include "BleServerService.hpp"
+BleServerService bleService(&csAtConnection, &connectionPool);
+#endif
+
 #ifdef WEBSOCKET_ENABLED
 WsServerService wsService(&csAtConnection, &connectionPool, 80);
 #endif
@@ -227,6 +232,9 @@ void setup()
 #ifdef MQTT_ENABLED
     mqttService.setup();
 #endif
+#ifdef BLE_ENABLED
+    bleService.setup();
+#endif
     Serial.println("STARTING");
 }
 
@@ -242,5 +250,8 @@ void loop()
   #endif
   #ifdef MQTT_ENABLED
   mqttService.loop();
+  #endif
+  #ifdef BLE_ENABLED
+  bleService.loop();
   #endif
 }
