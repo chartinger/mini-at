@@ -10,11 +10,14 @@ typedef enum
     PREFIX_A,
     PREFIX_T,
     COMMAND,
-    WRITE,
-    WRITE_START,
     READ,
     TEST,
-    TEST_OR_VARIABLE,
+  
+    TEST_OR_PARAMETER_START,
+    PARAMETER_START,
+    PARAMETER_STRING,
+    PARAMETER_NUMBER,
+    PARAMETER_DELIMITER_OR_END
 } AT_PARSER_STATE;
 
 
@@ -44,6 +47,7 @@ class AtParser {
             this->state = PREFIX_T;
           }
           break;
+
         case PREFIX_T:
           if(current == 'T') {
             this->state = COMMAND;
@@ -51,6 +55,7 @@ class AtParser {
             this->state = PREFIX_A;
           }
           break;
+
         case COMMAND:
           *this->buffer[bufferPosition] = 0;
           if(current == '?') {
@@ -58,7 +63,7 @@ class AtParser {
             return;
           } else 
           if(current == '=') {
-            this->state = WRITE_START;
+            this->state = TEST_OR_PARAMETER_START;
             return;
           } else 
           if(current == '\r') {
@@ -69,38 +74,42 @@ class AtParser {
           }
           bufferPosition++;
           break;
-        case WRITE_START:
+
+        case TEST_OR_PARAMETER_START:
           if(current == '?') {
             this->state = TEST;
             return;
-          } else 
-          if(current == '\r') {
-            this->error();
-            return;
-          } else if(current == ',') {
-            *this->buffer[bufferPosition] = 0;
-            this->numParameters++;
-          } else {
-            *this->buffer[bufferPosition] = current;
           }
           this->parameterStartPosition = bufferPosition;
-          this->bufferPosition++;
-          this->state = WRITE;
-          break;
-        case WRITE:
-          if(current == '\r') {
-            *this->buffer[bufferPosition] = 0;
-            this->numParameters++;
-            this->write();
+          this->state = PARAMETER_START;
+        case PARAMETER_START:
+          if(current == '"') {
+            this->state = PARAMETER_STRING;
             return;
-          } else if(current == ',') {
-            *this->buffer[bufferPosition] = 0;
-            this->numParameters++;
-          } else {
-            *this->buffer[bufferPosition] = current;
           }
-          this->bufferPosition++;
+          this->state = PARAMETER_NUMBER;
+        case PARAMETER_NUMBER:
+          if(this->handleParameterDelimiterOrEnd(current)) {
+            return;
+          }
+          this->writeToBuffer(current);
           break;
+        
+        case PARAMETER_STRING:
+          if(current == '"') {
+            this->state = PARAMETER_DELIMITER_OR_END;
+            return;
+          }
+          this->writeToBuffer(current);
+          break;
+
+        case PARAMETER_DELIMITER_OR_END:
+          if(!this->handleParameterDelimiterOrEnd(current)) {
+            this->error();
+            return;
+          }
+          break;
+
         case READ:
           if(current == '\r') {
             this->read();
@@ -108,6 +117,7 @@ class AtParser {
             this->error();
           }
           break;
+
         case TEST:
           if(current == '\r') {
             this->test();
@@ -115,6 +125,26 @@ class AtParser {
             this->error();
           }
           break;
+      }
+    }
+
+    uint8_t getNumParameters() {
+      return this->numParameters;
+    }
+
+    char* getNextParameter() {
+      if(this->numParameters == 0) {
+        return nullptr;
+      }
+      if(this->currentParameterToRead == 0) {
+        this->parameterReadPosition = this->parameterStartPosition;
+      }
+      char* param = this->buffer[this->parameterReadPosition];
+      this->currentParameterToRead++;
+      if(this->currentParameterToRead >= this->numParameters) {
+        this->currentParameterToRead = 0;
+      } else {
+        this->parameterReadPosition += strlen(param) + 1;
       }
     }
 
@@ -132,6 +162,25 @@ class AtParser {
     uint8_t parameterReadPosition = 0;
     uint8_t currentParameterToRead = 0;
 
+    boolean handleParameterDelimiterOrEnd(char current) {
+      if(current == ',') {
+        this->writeToBuffer(0);
+        this->state = PARAMETER_START;
+        return true;
+      }
+      if(current == '\r') {
+        this->writeToBuffer(0);
+        this->write();
+        return true;
+      }
+      return false;
+    }
+
+    void writeToBuffer(char current) {
+      *this->buffer[bufferPosition] = current;
+      this->bufferPosition++;
+    }
+
     void setCommand() {
       for (uint8_t i = 0; i < this->numberOfCommands; i++)
       {
@@ -139,22 +188,6 @@ class AtParser {
         {
           *this->currentCommand = this->atCommands[i];
         }
-      }
-    }
-
-    char* getNextParameter() {
-      if(this->numParameters == 0) {
-        return nullptr;
-      }
-      if(this->currentParameterToRead == 0) {
-        this->parameterReadPosition = this->parameterStartPosition;
-      }
-      char* param = this->buffer[this->parameterReadPosition];
-      this->currentParameterToRead++;
-      if(this->currentParameterToRead >= this->numParameters) {
-        this->currentParameterToRead = 0;
-      } else {
-        this->parameterReadPosition += strlen(param) + 1;
       }
     }
 
