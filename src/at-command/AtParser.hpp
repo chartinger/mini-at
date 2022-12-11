@@ -16,7 +16,9 @@ typedef enum {
   PARAMETER_START,
   PARAMETER_STRING,
   PARAMETER_NUMBER,
-  PARAMETER_DELIMITER_OR_END
+  PARAMETER_DELIMITER_OR_END,
+  PARAMETER_TERMINATOR,
+  PASSTHROUGH,
 } AT_PARSER_STATE;
 
 typedef int16_t AT_COMMAND_RETURN_TYPE;
@@ -95,8 +97,6 @@ public:
       this->state = PARAMETER_NUMBER;
     case PARAMETER_NUMBER:
       if (this->handleParameterDelimiterOrEnd(current)) {
-        // wait what? do parameter!
-        this->write();
         return;
       }
       this->writeToBuffer(current);
@@ -115,7 +115,14 @@ public:
         this->error();
         return;
       }
-      this->write();
+      break;
+
+    case PARAMETER_TERMINATOR:
+      if (current == '\n') {
+        this->write();
+      } else {
+        this->error();
+      }
       break;
 
     case READ:
@@ -133,36 +140,44 @@ public:
         this->error();
       }
       break;
+
+    case PASSTHROUGH:
+      writeToBuffer(current);
+      remainingPassthroughChars--;
+      if (remainingPassthroughChars <= 0) {
+        writeToBuffer(0);
+        handlePassthroughEnd();
+        return;
+      }
+      break;
     }
   }
 
   uint8_t getNumParameters() const { return this->numParameters; }
 
-  char *getNextParameter() {
+  const char *getNextParameter() {
     if (this->numParameters == 0) {
       return nullptr;
     }
     if (this->currentParameterToRead == 0) {
       this->parameterReadPosition = this->parameterStartPosition;
     }
-    // char param = this->buffer[this->parameterReadPosition];
-    // this->currentParameterToRead++;
-    // if (this->currentParameterToRead >= this->numParameters) {
-    //   this->currentParameterToRead = 0;
-    // } else {
-    //   // this->parameterReadPosition += strlen(param) + 1;
-    // }
+    const char *param = &buffer[this->parameterReadPosition];
+    this->currentParameterToRead++;
+    if (this->currentParameterToRead >= this->numParameters) {
+      this->currentParameterToRead = 0;
+    } else {
+      this->parameterReadPosition += strlen(param) + 1;
+    }
+    return param;
   }
 
-  AT_PARSER_STATE getState() const { return this->state; }
-
-  uint16_t getDebug() const { return debug; }
+  const char *getBuffer() { return buffer; }
 
 private:
   char *buffer;
   uint16_t bufferPosition = 0;
   AT_PARSER_STATE state = PREFIX_A;
-  uint16_t debug = 0;
   uint16_t numberOfCommands;
   const at_command_t *atCommands;
   Stream *serial;
@@ -173,15 +188,19 @@ private:
   uint8_t parameterReadPosition = 0;
   uint8_t currentParameterToRead = 0;
 
+  uint16_t remainingPassthroughChars = 0;
+
   boolean handleParameterDelimiterOrEnd(char current) {
     if (current == ',') {
       this->writeToBuffer(0);
       this->state = PARAMETER_START;
+      numParameters++;
       return true;
     }
     if (current == '\r') {
       this->writeToBuffer(0);
-      // this->write();
+      numParameters++;
+      state = PARAMETER_TERMINATOR;
       return true;
     }
     return false;
@@ -210,9 +229,23 @@ private:
     }
     if (result > 0) {
       serial->print(">\r\n");
+      this->state = PASSTHROUGH;
+      this->remainingPassthroughChars = result;
+      this->bufferPosition = 0;
+      this->numParameters = 0;
+      this->parameterStartPosition = 0;
+      return;
     }
     reset();
     return;
+  }
+
+  void handlePassthroughEnd() {
+    if (this->currentCommand != nullptr && this->currentCommand->at_passtroughCmd != nullptr) {
+      handleCommandResult((this->currentCommand->at_passtroughCmd)(this));
+      return;
+    }
+    serial->print("ERROR\r\n");
   }
 
   void run() {
@@ -251,7 +284,7 @@ private:
       handleCommandResult((this->currentCommand->at_writeCmd)(this));
       return;
     }
-    serial->print("ERROR WWW\r\n");
+    serial->print("ERROR\r\n");
     reset();
   }
 
@@ -263,6 +296,7 @@ private:
     this->currentCommand = nullptr;
     this->numParameters = 0;
     this->parameterStartPosition = 0;
+    this->remainingPassthroughChars = 0;
   }
 };
 
