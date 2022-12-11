@@ -64,14 +64,15 @@ public:
     case COMMAND:
       (this->buffer)[bufferPosition] = 0;
       if (current == '?') {
+        bufferPosition++;
         this->state = READ;
         return;
       } else if (current == '=') {
         this->state = TEST_OR_PARAMETER_START;
+        bufferPosition++;
         return;
       } else if (current == '\r') {
         this->run();
-        this->reset();
         return;
       } else {
         buffer[bufferPosition] = current;
@@ -94,6 +95,8 @@ public:
       this->state = PARAMETER_NUMBER;
     case PARAMETER_NUMBER:
       if (this->handleParameterDelimiterOrEnd(current)) {
+        // wait what? do parameter!
+        this->write();
         return;
       }
       this->writeToBuffer(current);
@@ -112,6 +115,7 @@ public:
         this->error();
         return;
       }
+      this->write();
       break;
 
     case READ:
@@ -132,7 +136,7 @@ public:
     }
   }
 
-  uint8_t getNumParameters() { return this->numParameters; }
+  uint8_t getNumParameters() const { return this->numParameters; }
 
   char *getNextParameter() {
     if (this->numParameters == 0) {
@@ -150,9 +154,9 @@ public:
     // }
   }
 
-  AT_PARSER_STATE getState() { return this->state; }
+  AT_PARSER_STATE getState() const { return this->state; }
 
-  uint16_t getDebug() { return debug; }
+  uint16_t getDebug() const { return debug; }
 
 private:
   char *buffer;
@@ -177,7 +181,7 @@ private:
     }
     if (current == '\r') {
       this->writeToBuffer(0);
-      this->write();
+      // this->write();
       return true;
     }
     return false;
@@ -197,38 +201,64 @@ private:
     }
   }
 
+  void handleCommandResult(AT_COMMAND_RETURN_TYPE result) {
+    if (result == 0) {
+      serial->print("OK\r\n");
+    }
+    if (result < 0) {
+      serial->print("ERROR\r\n");
+    }
+    if (result > 0) {
+      serial->print(">\r\n");
+    }
+    reset();
+    return;
+  }
+
   void run() {
     setCommand();
     if (this->currentCommand != nullptr && this->currentCommand->at_runCmd != nullptr) {
-      (this->currentCommand->at_runCmd)(this);
+      handleCommandResult((this->currentCommand->at_runCmd)(this));
+      return;
     }
+    serial->print("ERROR\r\n");
+    reset();
   }
 
   void read() {
     setCommand();
     if (this->currentCommand != nullptr && this->currentCommand->at_readCmd != nullptr) {
-      (this->currentCommand->at_readCmd)(this);
+      handleCommandResult((this->currentCommand->at_readCmd)(this));
+      return;
     }
+    serial->print("ERROR\r\n");
+    reset();
   }
 
   void test() {
     setCommand();
     if (this->currentCommand != nullptr && this->currentCommand->at_testCmd != nullptr) {
-      (this->currentCommand->at_testCmd)(this);
+      handleCommandResult((this->currentCommand->at_testCmd)(this));
+      return;
     }
+    serial->print("ERROR\r\n");
+    reset();
   }
 
   void write() {
     setCommand();
     if (this->currentCommand != nullptr && this->currentCommand->at_writeCmd != nullptr) {
-      (this->currentCommand->at_writeCmd)(this);
+      handleCommandResult((this->currentCommand->at_writeCmd)(this));
+      return;
     }
+    serial->print("ERROR WWW\r\n");
+    reset();
   }
 
   void error() { reset(); }
 
   void reset() {
-    this->bufferPosition = 1;
+    this->bufferPosition = 0;
     this->state = PREFIX_A;
     this->currentCommand = nullptr;
     this->numParameters = 0;
