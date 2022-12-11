@@ -10,10 +10,20 @@ using namespace fakeit;
 Mock<CommandHandlerProxy> commandHandlerMock;
 Serial_ *MockSerial = ArduinoFakeMock(Serial);
 
+void resetSerial() {
+  ArduinoFake(Serial).Reset();
+  When(OverloadedMethod(ArduinoFake(Serial), print, size_t(const char *))).AlwaysReturn(1);
+}
+
 void setUp(void) {
   ArduinoFakeReset();
-  ArduinoFake(Serial).Reset();
+  resetSerial();
   commandHandlerMock.Reset();
+  When(Method(commandHandlerMock, run)).AlwaysReturn(0);
+  When(Method(commandHandlerMock, test)).AlwaysReturn(0);
+  When(Method(commandHandlerMock, read)).AlwaysReturn(0);
+  When(Method(commandHandlerMock, write)).AlwaysReturn(0);
+  When(Method(commandHandlerMock, passthrough)).AlwaysReturn(0);
 }
 
 void tearDown(void) {}
@@ -25,14 +35,7 @@ void feedInput(AtParser &parser, const char *data) {
   }
 }
 
-void resetSerial() {
-  ArduinoFake(Serial).Reset();
-  When(OverloadedMethod(ArduinoFake(Serial), print, size_t(const char *))).AlwaysReturn(1);
-}
-
 void it_executes_the_run_command(void) {
-  When(Method(commandHandlerMock, run)).AlwaysReturn(0);
-  When(OverloadedMethod(ArduinoFake(Serial), print, size_t(const char *))).AlwaysReturn(1);
   at_command_t commands[] = {
       {"+XY", [](AtParser *parser) -> AT_COMMAND_RETURN_TYPE { return commandHandlerMock.get().run(); }, nullptr, nullptr, nullptr,
        nullptr},
@@ -45,20 +48,9 @@ void it_executes_the_run_command(void) {
   TEST_ASSERT_MOCK(Verify(Method((commandHandlerMock), run)).Exactly(1));
 }
 
-void testParameters(AtParser *parser) {
-  TEST_ASSERT_EQUAL_INT(5, parser->getNumParameters());
-  TEST_ASSERT_EQUAL_STRING("1", parser->getNextParameter());
-  TEST_ASSERT_EQUAL_STRING("2", parser->getNextParameter());
-  TEST_ASSERT_EQUAL_STRING("3", parser->getNextParameter());
-  TEST_ASSERT_EQUAL_STRING("", parser->getNextParameter());
-  TEST_ASSERT_EQUAL_STRING("4", parser->getNextParameter());
-}
-
 void it_supports_the_write_command(void) {
   AtParser parser;
   char buffer[100];
-  When(Method(commandHandlerMock, write)).AlwaysReturn(0);
-  When(OverloadedMethod(ArduinoFake(Serial), print, size_t(const char *))).AlwaysReturn(1);
   at_command_t commands[] = {
       {
           "+XY",
@@ -66,7 +58,12 @@ void it_supports_the_write_command(void) {
           nullptr,
           nullptr,
           [](AtParser *parser) -> AT_COMMAND_RETURN_TYPE {
-            testParameters(parser);
+            TEST_ASSERT_EQUAL_INT(5, parser->getNumParameters());
+            TEST_ASSERT_EQUAL_STRING("1", parser->getNextParameter());
+            TEST_ASSERT_EQUAL_STRING("2", parser->getNextParameter());
+            TEST_ASSERT_EQUAL_STRING("3", parser->getNextParameter());
+            TEST_ASSERT_EQUAL_STRING("", parser->getNextParameter());
+            TEST_ASSERT_EQUAL_STRING("4", parser->getNextParameter());
             return commandHandlerMock.get().write();
           },
           [](AtParser *parser) -> AT_COMMAND_RETURN_TYPE { return commandHandlerMock.get().passthrough(); },
@@ -74,18 +71,14 @@ void it_supports_the_write_command(void) {
   };
   parser.begin(MockSerial, commands, sizeof(commands), buffer);
 
-  // WRITE
   feedInput(parser, "AT+XY=1,2,3,,4\r\n");
   TEST_ASSERT_MOCK(Verify(Method((commandHandlerMock), write)).Exactly(1));
   TEST_ASSERT_SERIAL_PRINT("OK\r\n");
-  resetSerial();
 }
 
 void it_supports_the_write_command_with_empty_parameters(void) {
   AtParser parser;
   char buffer[100];
-  When(Method(commandHandlerMock, write)).AlwaysReturn(0);
-  When(OverloadedMethod(ArduinoFake(Serial), print, size_t(const char *))).AlwaysReturn(1);
   at_command_t commands[] = {
       {"+XY", nullptr, nullptr, nullptr,
        [](AtParser *parser) -> AT_COMMAND_RETURN_TYPE {
@@ -108,8 +101,6 @@ void it_supports_the_write_command_with_empty_parameters(void) {
 void it_supports_the_write_command_with_string_and_number_parameters(void) {
   AtParser parser;
   char buffer[100];
-  When(Method(commandHandlerMock, write)).AlwaysReturn(0);
-  When(OverloadedMethod(ArduinoFake(Serial), print, size_t(const char *))).AlwaysReturn(1);
   at_command_t commands[] = {
       {"+XY", nullptr, nullptr, nullptr,
        [](AtParser *parser) -> AT_COMMAND_RETURN_TYPE {
@@ -131,9 +122,6 @@ void it_supports_the_write_command_with_string_and_number_parameters(void) {
 void it_supports_the_write_command_with_passthrough(void) {
   AtParser parser;
   char buffer[100];
-  When(Method(commandHandlerMock, write)).AlwaysReturn(0);
-  When(Method(commandHandlerMock, passthrough)).AlwaysReturn(0);
-  When(OverloadedMethod(ArduinoFake(Serial), print, size_t(const char *))).AlwaysReturn(1);
   at_command_t commands[] = {
       {"+XY", nullptr, nullptr, nullptr,
        [](AtParser *parser) -> AT_COMMAND_RETURN_TYPE {
@@ -159,11 +147,6 @@ void it_supports_the_write_command_with_passthrough(void) {
 void it_executes_the_base_commands(void) {
   AtParser parser;
   char buffer[100];
-  When(Method(commandHandlerMock, run)).AlwaysReturn(0);
-  When(Method(commandHandlerMock, test)).AlwaysReturn(0);
-  When(Method(commandHandlerMock, read)).AlwaysReturn(0);
-  When(Method(commandHandlerMock, write)).AlwaysReturn(0);
-  When(OverloadedMethod(ArduinoFake(Serial), print, size_t(const char *))).AlwaysReturn(1);
   at_command_t commands[] = {
       {
           "+XY",
@@ -202,9 +185,6 @@ void it_executes_the_base_commands(void) {
 }
 
 void it_can_run_multiple_commands(void) {
-  When(Method(commandHandlerMock, run)).AlwaysReturn(0);
-  When(OverloadedMethod(ArduinoFake(Serial), print, size_t(const char *))).AlwaysReturn(1);
-
   at_command_t commands[] = {
       {"+XY", [](AtParser *parser) -> AT_COMMAND_RETURN_TYPE { return commandHandlerMock.get().run(); }, nullptr, nullptr, nullptr,
        nullptr},
