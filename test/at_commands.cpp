@@ -48,6 +48,19 @@ void it_executes_the_run_command(void) {
   TEST_ASSERT_MOCK(Verify(Method((commandHandlerMock), run)).Exactly(1));
 }
 
+void it_ignores_unknown_commands(void) {
+  at_command_t commands[] = {
+      {"+XY", [](AtParser *parser) -> AT_COMMAND_RETURN_TYPE { return commandHandlerMock.get().run(); }, nullptr, nullptr, nullptr,
+       nullptr},
+  };
+  AtParser parser;
+  char buffer[100];
+  parser.begin(MockSerial, commands, sizeof(commands), buffer);
+  feedInput(parser, "AT+WTF\r\n");
+  TEST_ASSERT_SERIAL_PRINT("ERROR\r\n");
+  TEST_ASSERT_MOCK(Verify(Method((commandHandlerMock), run)).Exactly(0));
+}
+
 void it_supports_the_write_command(void) {
   AtParser parser;
   char buffer[100];
@@ -202,11 +215,12 @@ void it_can_run_multiple_commands(void) {
 
 int runUnityTests(void) {
   UNITY_BEGIN();
+  RUN_TEST(it_executes_the_run_command);
   RUN_TEST(it_supports_the_write_command);
+  RUN_TEST(it_ignores_unknown_commands);
   RUN_TEST(it_supports_the_write_command_with_passthrough);
   RUN_TEST(it_supports_the_write_command_with_empty_parameters);
   RUN_TEST(it_supports_the_write_command_with_string_and_number_parameters);
-  RUN_TEST(it_executes_the_run_command);
   RUN_TEST(it_executes_the_base_commands);
   RUN_TEST(it_can_run_multiple_commands);
   return UNITY_END();

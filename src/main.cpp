@@ -1,6 +1,8 @@
 #include "./config.h"
 #include <Arduino.h>
 
+#include "at-command/AtParser.hpp"
+
 #ifdef ESP32
 #include <WiFi.h>
 #endif
@@ -9,7 +11,7 @@
 #endif
 
 #ifdef ESP32
-#define CsSerial Serial2
+#define CsSerial Serial
 #endif
 #ifdef ESP8266
 #define CsSerial Serial1
@@ -25,7 +27,7 @@
   #include <ESPAsyncWebServer.h>
 #endif
 
-#include <ATCommands.h>
+// #include <AtParser.h>
 
 #include "CsAtConnection.hpp"
 #include "ConnectionPool.hpp"
@@ -54,6 +56,7 @@
 #endif
 
 #define WORKING_BUFFER_SIZE 255 // The size of the working buffer (ie: the expected length of the input string)
+char at_buffer[WORKING_BUFFER_SIZE];
 
 const char* ssid = WLAN_SSID;
 const char* password = WLAN_PASSWORD;
@@ -63,9 +66,9 @@ const char* password = WLAN_PASSWORD;
 
 WiFiClient wifiClient;
 
-ATCommands AT; // create an instance of the class
-String str1;
-String str2;
+AtParser AT; // create an instance of the class
+const char* str1;
+const char* str2;
 int16_t payloadConnection = -1;
 
 void setupWifi() {
@@ -112,24 +115,24 @@ MqttClientService mqttService(&csAtConnection, &connectionPool, &wifiClient);
 #endif
 
 
-AT_COMMAND_RETURN_TYPE ping(ATCommands *sender)
+AT_COMMAND_RETURN_TYPE ping(AtParser *sender)
 {
     Serial.println(F("pong"));
     return 0;
 }
 
-AT_COMMAND_RETURN_TYPE printEspInfo(ATCommands *sender)
+AT_COMMAND_RETURN_TYPE printEspInfo(AtParser *sender)
 {
     sender->serial->println(ESP.getFreeHeap());
     return 0;
 }
 
-AT_COMMAND_RETURN_TYPE passthrough(ATCommands *sender)
+AT_COMMAND_RETURN_TYPE passthrough(AtParser *sender)
 {
     if(passthroughConnectionIndex >= 0) {
       auto poolEntry = connectionPool.getPoolEntry(passthroughConnectionIndex);
       if(poolEntry.clientService != nullptr) {
-        poolEntry.clientService->send(poolEntry.clientServiceData, sender->getBuffer().c_str());
+        poolEntry.clientService->send(poolEntry.clientServiceData, sender->getBuffer());
         passthroughConnectionIndex = -1;
         return 0;
       }
@@ -142,13 +145,13 @@ AT_COMMAND_RETURN_TYPE passthrough(ATCommands *sender)
     return 0;
 }
 
-AT_COMMAND_RETURN_TYPE printVersion(ATCommands *sender)
+AT_COMMAND_RETURN_TYPE printVersion(AtParser *sender)
 {
     sender->serial->println(F("AT mini custom firmware"));
     return 0;
 }
 
-AT_COMMAND_RETURN_TYPE printWifiInfo(ATCommands *sender)
+AT_COMMAND_RETURN_TYPE printWifiInfo(AtParser *sender)
 {
     sender->serial->print(F("+CIFSR:STAIP,\""));
     sender->serial->print(WiFi.localIP());
@@ -158,35 +161,35 @@ AT_COMMAND_RETURN_TYPE printWifiInfo(ATCommands *sender)
     return 0;
 }
 
-AT_COMMAND_RETURN_TYPE ok(ATCommands *sender)
+AT_COMMAND_RETURN_TYPE ok(AtParser *sender)
 {
     return 0;
 }
 
-AT_COMMAND_RETURN_TYPE enableEchoMode(ATCommands *sender)
+AT_COMMAND_RETURN_TYPE enableEchoMode(AtParser *sender)
 {
-    sender->setEchoMode(true);
+    // sender->setEchoMode(true);
     return 0;
 }
 
-AT_COMMAND_RETURN_TYPE disableEchoMode(ATCommands *sender)
+AT_COMMAND_RETURN_TYPE disableEchoMode(AtParser *sender)
 {
-    sender->setEchoMode(false);
+    // sender->setEchoMode(false);
     return 0;
 }
 
-AT_COMMAND_RETURN_TYPE startSend(ATCommands *sender)
+AT_COMMAND_RETURN_TYPE startSend(AtParser *sender)
 {
-    str1 = sender->next();
-    if (str1.length() == 0) {
+    str1 = sender->getNextParameter();
+    if (str1 == nullptr) {
       return -1;
     }
-    str2 = sender->next();
-    if (str2.length() == 0) {
+    str2 = sender->getNextParameter();
+    if (str2 == nullptr) {
       return -1;
     }
-    payloadConnection = str1.toInt();
-    int16_t payloadLength = str2.toInt();
+    payloadConnection = atoi(str1);
+    int16_t payloadLength = atoi(str2);
     if(payloadConnection < 0 || payloadLength <=0) {
       return -1;
     }
@@ -218,13 +221,14 @@ void setup()
 {
     Serial.begin(115200);
     #ifdef ESP32
-      CsSerial.begin(115200, SERIAL_8N1, RX, TX);
+      // CsSerial.begin(115200, SERIAL_8N1, RX, TX);
+      CsSerial.begin(115200);
     #endif
     #ifdef ESP8266
       CsSerial.begin(115200);
     #endif
     setupWifi();
-    AT.begin(&CsSerial, commands, sizeof(commands), WORKING_BUFFER_SIZE);
+    AT.begin(&CsSerial, commands, sizeof(commands), at_buffer);
 #ifdef WEBSOCKET_ENABLED
     wsService.setup();
 #endif
@@ -239,12 +243,19 @@ void setup()
 }
 
 void loop()
-{
-  AT.update();
+{ 
+    while (CsSerial.available() > 0)
+    {
+        int ch = CsSerial.read();
+        CsSerial.print((char)ch);
+        AT.parse(ch);
+    }
+
+//  AT.update();
   #ifdef WEBSOCKET_ENABLED
-  wsService.loop();
+  // wsService.loop();
   #endif
-  tcpService.loop();
+  // tcpService.loop();
   #ifdef OTA_ENABLED
   ArduinoOTA.handle();
   #endif

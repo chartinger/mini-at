@@ -1,6 +1,6 @@
 #include "CsAtConnection.hpp"
 
-CsAtConnection::CsAtConnection(ATCommands *AtCommands)
+CsAtConnection::CsAtConnection(AtParser *AtCommands)
   : AT(AtCommands) {}
 
 void CsAtConnection::sendData(uint16_t connectionId, size_t len, const uint8_t *data) {

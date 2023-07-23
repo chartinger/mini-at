@@ -3,9 +3,9 @@
 
 class ClientService {
   public:
-    virtual void setup();
-    virtual void loop();
-    virtual void send(void *clientData, const char *data);
+    virtual void setup() = 0;
+    virtual void loop() = 0;
+    virtual void send(void *clientData, const char *data) = 0;
 };
 
 #endif

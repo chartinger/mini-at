@@ -18,7 +18,6 @@
 #endif
 #include <ESPAsyncWebServer.h>
 
-#include <ATCommands.h>
 #include "CsAtConnection.hpp"
 #include "ClientService.hpp"
 #include "ConnectionPool.hpp"

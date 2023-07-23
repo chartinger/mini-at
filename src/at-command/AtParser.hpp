@@ -41,7 +41,6 @@ public:
   AtParser() {}
   void begin(Stream *serial, const at_command_t *commands, uint32_t size, char *buffer) {
     this->buffer = buffer;
-    (this->buffer)[0] = 'A';
     this->atCommands = commands;
     this->numberOfCommands = (uint16_t)(size / sizeof(at_command_t));
     this->serial = serial;
@@ -174,13 +173,14 @@ public:
 
   const char *getBuffer() { return buffer; }
 
+  Stream *serial;
+
 private:
   char *buffer;
   uint16_t bufferPosition = 0;
   AT_PARSER_STATE state = PREFIX_A;
   uint16_t numberOfCommands;
   const at_command_t *atCommands;
-  Stream *serial;
 
   const at_command_t *currentCommand = nullptr;
   uint8_t numParameters = 0;
