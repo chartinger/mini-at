@@ -1,8 +1,8 @@
 #ifndef AT_PARSER_H
 #define AT_PARSER_H
 
-#include <Arduino.h>
 #include "./AtCommandHandler.hpp"
+#include <Arduino.h>
 
 typedef class AtParser AtParser;
 
@@ -22,16 +22,15 @@ typedef enum {
   PASSTHROUGH,
 } AT_PARSER_STATE;
 
-typedef int16_t AT_COMMAND_RETURN_TYPE;
-
 class AtParser {
 public:
   AtParser() {}
-  void begin(Stream *serial, AtCommandHandler **commands, uint32_t size, char *buffer) {
+  void begin(Stream *serial, AtCommandHandler **commands, uint32_t size, char *buffer, uint32_t bufferSize) {
     this->buffer = buffer;
     this->atCommands = commands;
-    this->numberOfCommands = (uint16_t)(size / sizeof(AtCommandHandler*));
+    this->numberOfCommands = (uint16_t)(size / sizeof(AtCommandHandler *));
     this->serial = serial;
+    this->bufferSize = bufferSize;
   }
 
   void parse(char current) {
@@ -53,7 +52,9 @@ public:
     case COMMAND:
       (this->buffer)[bufferPosition] = 0;
       if (current == '?') {
-        bufferPosition++;
+        if (!this->advanceBufferPosition()) {
+          error();
+        }
         this->state = READ;
         return;
       } else if (current == '=') {
@@ -74,9 +75,10 @@ public:
         this->state = TEST;
         return;
       }
-      this->parameterStartPosition = bufferPosition;
       this->state = PARAMETER_START;
     case PARAMETER_START:
+      this->num_args = this->num_args + 1;
+      this->args[this->num_args - 1] = &this->buffer[bufferPosition];
       if (current == '"') {
         this->state = PARAMETER_STRING;
         return;
@@ -140,54 +142,38 @@ public:
     }
   }
 
-  uint8_t getNumParameters() const { return this->numParameters; }
-
-  const char *getNextParameter() {
-    if (this->numParameters == 0) {
-      return nullptr;
-    }
-    if (this->currentParameterToRead == 0) {
-      this->parameterReadPosition = this->parameterStartPosition;
-    }
-    const char *param = &buffer[this->parameterReadPosition];
-    this->currentParameterToRead++;
-    if (this->currentParameterToRead >= this->numParameters) {
-      this->currentParameterToRead = 0;
-    } else {
-      this->parameterReadPosition += strlen(param) + 1;
-    }
-    return param;
-  }
-
   const char *getBuffer() { return buffer; }
 
   Stream *serial;
 
 private:
   char *buffer;
+  uint16_t bufferSize = 0;
   uint16_t bufferPosition = 0;
   AT_PARSER_STATE state = PREFIX_A;
   uint16_t numberOfCommands;
   AtCommandHandler **atCommands;
 
   AtCommandHandler *currentCommand = nullptr;
-  uint8_t numParameters = 0;
-  uint8_t parameterStartPosition = 0;
-  uint8_t parameterReadPosition = 0;
-  uint8_t currentParameterToRead = 0;
+  // uint8_t numParameters = 0;
+  // uint8_t parameterStartPosition = 0;
+  // uint8_t parameterReadPosition = 0;
+  // uint8_t currentParameterToRead = 0;
 
   uint16_t remainingPassthroughChars = 0;
+
+  uint8_t max_args = 10;
+  uint8_t num_args = 0;
+  char *args[10];
 
   boolean handleParameterDelimiterOrEnd(char current) {
     if (current == ',') {
       this->writeToBuffer(0);
       this->state = PARAMETER_START;
-      numParameters++;
       return true;
     }
     if (current == '\r') {
       this->writeToBuffer(0);
-      numParameters++;
       state = PARAMETER_TERMINATOR;
       return true;
     }
@@ -201,7 +187,7 @@ private:
 
   void setCommand() {
     for (uint8_t i = 0; i < this->numberOfCommands; i++) {
-      const char* name = ((this->atCommands)[i])->getName();
+      const char *name = ((this->atCommands)[i])->getName();
       if (strncmp(buffer, name, 100) == 0) {
         currentCommand = atCommands[i];
         return;
@@ -217,12 +203,16 @@ private:
       serial->print("ERROR\r\n");
     }
     if (result > 0) {
+      if (result >= this->bufferSize - 1) {
+        serial->print("ERROR\r\n");
+        this->error();
+        return;
+      }
       serial->print(">\r\n");
       this->state = PASSTHROUGH;
       this->remainingPassthroughChars = result;
       this->bufferPosition = 0;
-      this->numParameters = 0;
-      this->parameterStartPosition = 0;
+      this->num_args = 0;
       return;
     }
     reset();
@@ -235,6 +225,7 @@ private:
       return;
     }
     serial->print("ERROR\r\n");
+    reset();
   }
 
   void run() {
@@ -270,7 +261,7 @@ private:
   void write() {
     setCommand();
     if (this->currentCommand != nullptr) {
-      handleCommandResult(this->currentCommand->write(this));
+      handleCommandResult(this->currentCommand->write(this, (char **)(this->args), this->num_args));
       return;
     }
     serial->print("ERROR\r\n");
@@ -283,9 +274,15 @@ private:
     this->bufferPosition = 0;
     this->state = PREFIX_A;
     this->currentCommand = nullptr;
-    this->numParameters = 0;
-    this->parameterStartPosition = 0;
     this->remainingPassthroughChars = 0;
+    this->num_args = 0;
+  }
+
+  boolean advanceBufferPosition() {
+    if (this->bufferPosition >= this->bufferSize - 2) {
+      return false;
+    }
+    return true;
   }
 };
 
