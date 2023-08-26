@@ -2,6 +2,7 @@
 #define AT_PARSER_H
 
 #include <Arduino.h>
+#include "./AtCommandHandler.hpp"
 
 typedef class AtParser AtParser;
 
@@ -23,26 +24,13 @@ typedef enum {
 
 typedef int16_t AT_COMMAND_RETURN_TYPE;
 
-/**
- * @brief at_command_t struct
- *  borrowed verbatim from esp-at and is used to define an AT command
- */
-typedef struct {
-  const char *at_cmdName;                                 // command name
-  AT_COMMAND_RETURN_TYPE (*at_runCmd)(AtParser *);        // RUN command function pointer
-  AT_COMMAND_RETURN_TYPE (*at_testCmd)(AtParser *);       // TEST command function pointer
-  AT_COMMAND_RETURN_TYPE (*at_readCmd)(AtParser *);       // READ command function pointer
-  AT_COMMAND_RETURN_TYPE (*at_writeCmd)(AtParser *);      // WRITE command function pointer
-  AT_COMMAND_RETURN_TYPE (*at_passtroughCmd)(AtParser *); // PASSTHROUGH command
-} at_command_t;
-
 class AtParser {
 public:
   AtParser() {}
-  void begin(Stream *serial, const at_command_t *commands, uint32_t size, char *buffer) {
+  void begin(Stream *serial, AtCommandHandler **commands, uint32_t size, char *buffer) {
     this->buffer = buffer;
     this->atCommands = commands;
-    this->numberOfCommands = (uint16_t)(size / sizeof(at_command_t));
+    this->numberOfCommands = (uint16_t)(size / sizeof(AtCommandHandler*));
     this->serial = serial;
   }
 
@@ -180,9 +168,9 @@ private:
   uint16_t bufferPosition = 0;
   AT_PARSER_STATE state = PREFIX_A;
   uint16_t numberOfCommands;
-  const at_command_t *atCommands;
+  AtCommandHandler **atCommands;
 
-  const at_command_t *currentCommand = nullptr;
+  AtCommandHandler *currentCommand = nullptr;
   uint8_t numParameters = 0;
   uint8_t parameterStartPosition = 0;
   uint8_t parameterReadPosition = 0;
@@ -213,8 +201,9 @@ private:
 
   void setCommand() {
     for (uint8_t i = 0; i < this->numberOfCommands; i++) {
-      if (strncmp(buffer, (this->atCommands)[i].at_cmdName, 100) == 0) {
-        currentCommand = (&atCommands[i]);
+      const char* name = ((this->atCommands)[i])->getName();
+      if (strncmp(buffer, name, 100) == 0) {
+        currentCommand = atCommands[i];
         return;
       }
     }
@@ -241,8 +230,8 @@ private:
   }
 
   void handlePassthroughEnd() {
-    if (this->currentCommand != nullptr && this->currentCommand->at_passtroughCmd != nullptr) {
-      handleCommandResult((this->currentCommand->at_passtroughCmd)(this));
+    if (this->currentCommand != nullptr) {
+      handleCommandResult(this->currentCommand->passthrough(this));
       return;
     }
     serial->print("ERROR\r\n");
@@ -250,8 +239,8 @@ private:
 
   void run() {
     setCommand();
-    if (this->currentCommand != nullptr && this->currentCommand->at_runCmd != nullptr) {
-      handleCommandResult((this->currentCommand->at_runCmd)(this));
+    if (this->currentCommand != nullptr) {
+      handleCommandResult(this->currentCommand->run(this));
       return;
     }
     serial->print("ERROR\r\n");
@@ -260,8 +249,8 @@ private:
 
   void read() {
     setCommand();
-    if (this->currentCommand != nullptr && this->currentCommand->at_readCmd != nullptr) {
-      handleCommandResult((this->currentCommand->at_readCmd)(this));
+    if (this->currentCommand != nullptr) {
+      handleCommandResult(this->currentCommand->read(this));
       return;
     }
     serial->print("ERROR\r\n");
@@ -270,8 +259,8 @@ private:
 
   void test() {
     setCommand();
-    if (this->currentCommand != nullptr && this->currentCommand->at_testCmd != nullptr) {
-      handleCommandResult((this->currentCommand->at_testCmd)(this));
+    if (this->currentCommand != nullptr) {
+      handleCommandResult(this->currentCommand->test(this));
       return;
     }
     serial->print("ERROR\r\n");
@@ -280,8 +269,8 @@ private:
 
   void write() {
     setCommand();
-    if (this->currentCommand != nullptr && this->currentCommand->at_writeCmd != nullptr) {
-      handleCommandResult((this->currentCommand->at_writeCmd)(this));
+    if (this->currentCommand != nullptr) {
+      handleCommandResult(this->currentCommand->write(this));
       return;
     }
     serial->print("ERROR\r\n");
