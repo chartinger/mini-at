@@ -1,8 +1,8 @@
 #ifndef AT_PARSER_H
 #define AT_PARSER_H
 
-#include "./AtCommandHandler.hpp"
 #include <Arduino.h>
+#include "./AtCommandHandler.hpp"
 
 typedef class AtParser AtParser;
 
@@ -31,6 +31,7 @@ public:
     this->numberOfCommands = (uint16_t)(size / sizeof(AtCommandHandler *));
     this->serial = serial;
     this->bufferSize = bufferSize;
+    this->reset();
   }
 
   void parse(char current) {
@@ -142,8 +143,6 @@ public:
     }
   }
 
-  const char *getBuffer() { return buffer; }
-
   Stream *serial;
 
 private:
@@ -155,11 +154,8 @@ private:
   AtCommandHandler **atCommands;
 
   AtCommandHandler *currentCommand = nullptr;
-  // uint8_t numParameters = 0;
-  // uint8_t parameterStartPosition = 0;
-  // uint8_t parameterReadPosition = 0;
-  // uint8_t currentParameterToRead = 0;
 
+  uint16_t numPassthroughChars = 0;
   uint16_t remainingPassthroughChars = 0;
 
   uint8_t max_args = 10;
@@ -211,6 +207,7 @@ private:
       serial->print(">\r\n");
       this->state = PASSTHROUGH;
       this->remainingPassthroughChars = result;
+      this->numPassthroughChars = result;
       this->bufferPosition = 0;
       this->num_args = 0;
       return;
@@ -221,7 +218,7 @@ private:
 
   void handlePassthroughEnd() {
     if (this->currentCommand != nullptr) {
-      handleCommandResult(this->currentCommand->passthrough(this));
+      handleCommandResult(this->currentCommand->passthrough(this, this->buffer, this->numPassthroughChars));
       return;
     }
     serial->print("ERROR\r\n");
@@ -275,6 +272,7 @@ private:
     this->state = PREFIX_A;
     this->currentCommand = nullptr;
     this->remainingPassthroughChars = 0;
+    this->numPassthroughChars = 0;
     this->num_args = 0;
   }
 

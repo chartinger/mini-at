@@ -103,8 +103,9 @@ void it_supports_the_write_command_with_passthrough(void) {
     TEST_ASSERT_EQUAL_INT(1, argc);
     return 10;
   });
-  When(Method(commandHandlerMock, passthrough)).AlwaysDo([](AtParser *parser) {
-    TEST_ASSERT_EQUAL_STRING("Hello You!", parser->getBuffer());
+  When(Method(commandHandlerMock, passthrough)).AlwaysDo([](AtParser *parser, char* data, uint16_t dataLength) {
+    TEST_ASSERT_EQUAL_INT(10, dataLength);
+    TEST_ASSERT_EQUAL_STRING("Hello You!", data);
     return 0;
   });
   AtCommandHandler *commands[1] = {&commandHandlerMock.get()};
