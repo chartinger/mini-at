@@ -11,7 +11,7 @@
 #endif
 
 #ifdef ESP32
-#define CsSerial Serial
+#define CsSerial Serial2
 #endif
 #ifdef ESP8266
 #define CsSerial Serial1
@@ -26,8 +26,6 @@
   #endif
   #include <ESPAsyncWebServer.h>
 #endif
-
-// #include <AtParser.h>
 
 #include "CsAtConnection.hpp"
 #include "ConnectionPool.hpp"
@@ -114,121 +112,138 @@ TcpServerService tcpService(&csAtConnection, &connectionPool, 9999);
 MqttClientService mqttService(&csAtConnection, &connectionPool, &wifiClient);
 #endif
 
-
-AT_COMMAND_RETURN_TYPE ping(AtParser *sender)
-{
-    Serial.println(F("pong"));
+class EspInfoCommand : public AtCommandHandler {
+  const char *getName() { return "+ESPINFO"; };
+  AT_COMMAND_RETURN_TYPE run(Stream *out_stream) { 
+    out_stream->println(ESP.getFreeHeap());
     return 0;
-}
-
-AT_COMMAND_RETURN_TYPE printEspInfo(AtParser *sender)
-{
-    sender->serial->println(ESP.getFreeHeap());
+  };
+};
+class GMRCommand : public AtCommandHandler {
+  const char *getName() { return "+GMR"; };
+  AT_COMMAND_RETURN_TYPE run(Stream *out_stream) { 
+    Serial.println("#GMR#");
+    out_stream->println("AT mini custom firmware");
     return 0;
-}
+  };
+};
 
-AT_COMMAND_RETURN_TYPE passthrough(AtParser *sender)
-{
-    if(passthroughConnectionIndex >= 0) {
-      auto poolEntry = connectionPool.getPoolEntry(passthroughConnectionIndex);
-      if(poolEntry.clientService != nullptr) {
-        poolEntry.clientService->send(poolEntry.clientServiceData, sender->getBuffer());
-        passthroughConnectionIndex = -1;
-        return 0;
-      }
-      Serial.print(F("NO PASSTHROUGH HANDLER: "));
-      Serial.println(passthroughConnectionIndex);
-      passthroughConnectionIndex = -1;
+class CIFSRCommand : public AtCommandHandler {
+  const char *getName() { return "+CIFSR"; };
+  AT_COMMAND_RETURN_TYPE run(Stream *out_stream) { 
+    Serial.println("#AT CIFSR#");
+    out_stream->print(F("+CIFSR:STAIP,\""));
+    out_stream->print(WiFi.localIP());
+    out_stream->print(F("\""));
+    out_stream->print(F("+CIFSR:STAMAC,"));
+    out_stream->println(WiFi.macAddress());
+    return 0;
+  };
+};
+
+class ATCheckCommand : public AtCommandHandler {
+  const char *getName() { return ""; };
+  AT_COMMAND_RETURN_TYPE run(Stream *out_stream) { 
+    Serial.println("#AT REQUEST#");
+    return 0;
+  };
+};
+
+class CIPSENDCommand : public AtCommandHandler {
+  const char *getName() { return "+CIPSEND"; };
+  AT_COMMAND_RETURN_TYPE write(Stream *out_stream, char **argv, uint16_t argc) {
+    if(argc != 2) {
       return -1;
     }
-    passthroughConnectionIndex = -1;
-    return 0;
-}
-
-AT_COMMAND_RETURN_TYPE printVersion(AtParser *sender)
-{
-    sender->serial->println(F("AT mini custom firmware"));
-    return 0;
-}
-
-AT_COMMAND_RETURN_TYPE printWifiInfo(AtParser *sender)
-{
-    sender->serial->print(F("+CIFSR:STAIP,\""));
-    sender->serial->print(WiFi.localIP());
-    sender->serial->print(F("\""));
-    sender->serial->print(F("+CIFSR:STAMAC,"));
-    sender->serial->println(WiFi.macAddress());
-    return 0;
-}
-
-AT_COMMAND_RETURN_TYPE ok(AtParser *sender)
-{
-    return 0;
-}
-
-AT_COMMAND_RETURN_TYPE enableEchoMode(AtParser *sender)
-{
-    // sender->setEchoMode(true);
-    return 0;
-}
-
-AT_COMMAND_RETURN_TYPE disableEchoMode(AtParser *sender)
-{
-    // sender->setEchoMode(false);
-    return 0;
-}
-
-AT_COMMAND_RETURN_TYPE startSend(AtParser *sender)
-{
-    str1 = sender->getNextParameter();
-    if (str1 == nullptr) {
-      return -1;
-    }
-    str2 = sender->getNextParameter();
-    if (str2 == nullptr) {
-      return -1;
-    }
-    payloadConnection = atoi(str1);
-    int16_t payloadLength = atoi(str2);
+    payloadConnection = atoi(argv[0]);
+    int16_t payloadLength = atoi(argv[1]);
     if(payloadConnection < 0 || payloadLength <=0) {
       return -1;
     }
     passthroughConnectionIndex = payloadConnection;
     return payloadLength;
-}
-
-static at_command_t commands[] = {
-    {"+GMR", printVersion, nullptr, nullptr, nullptr, nullptr},
-    {"+CIFSR", printWifiInfo, nullptr, nullptr, nullptr, nullptr},
-    // {"+CIPMUX", ping, nullptr, nullptr, nullptr, nullptr},
-    // {"+CIPRECVMODE", ping, nullptr, nullptr, nullptr, nullptr},
-    // {"+CIPSERVER", ping, nullptr, nullptr, nullptr, nullptr},
-    // {"+CWHOSTNAME", ping, nullptr, nullptr, nullptr, nullptr},
-    // {"+CWJAP", ping, nullptr, nullptr, nullptr, nullptr},
-    // {"+CWJAP_CUR", ping, nullptr, nullptr, nullptr, nullptr},
-    // {"+CWMODE", ping, nullptr, nullptr, nullptr, nullptr},
-    // {"+CWSAP", ping, nullptr, nullptr, nullptr, nullptr},
-    // {"+MDNS", ping, nullptr, nullptr, nullptr, nullptr},
-    {"+CIPSEND", nullptr, nullptr, nullptr, startSend, passthrough},
-    {"+RST", ping, nullptr, nullptr, nullptr, passthrough},
-    {"E0", disableEchoMode, nullptr, nullptr, nullptr, nullptr},
-    {"E1", enableEchoMode, nullptr, nullptr, nullptr, nullptr},
-    {"+ESPINFO", printEspInfo, nullptr, nullptr, nullptr, nullptr},
-    {"", ok, nullptr, nullptr, nullptr, nullptr}
+  };
+  AT_COMMAND_RETURN_TYPE passthrough(Stream *out_stream, char* data, uint16_t dataLength) {
+    if(passthroughConnectionIndex >= 0) {
+      auto poolEntry = connectionPool.getPoolEntry(passthroughConnectionIndex);
+      if(poolEntry.clientService != nullptr) {
+        poolEntry.clientService->send(poolEntry.clientServiceData, data);
+        passthroughConnectionIndex = -1;
+        return 0;
+      }
+      passthroughConnectionIndex = -1;
+      return -1;
+    }
+    passthroughConnectionIndex = -1;
+    return 0;
+  }
 };
+
+class CIPSERVERCommand : public AtCommandHandler {
+  const char *getName() { return "+CIPSERVER"; };
+  AT_COMMAND_RETURN_TYPE write(Stream *out_stream, char **argv, uint16_t argc) { 
+    Serial.println("#CIPSERVER#");
+    return 0;
+  };
+};
+
+class CIPMUXCommand : public AtCommandHandler {
+  const char *getName() { return "+CIPMUX"; };
+  AT_COMMAND_RETURN_TYPE write(Stream *out_stream, char **argv, uint16_t argc) { 
+    Serial.println("#+CIPMUX#");
+    return 0;
+  };
+};
+
+class MDNSCommand : public AtCommandHandler {
+  const char *getName() { return "+MDNS"; };
+  AT_COMMAND_RETURN_TYPE write(Stream *out_stream, char **argv, uint16_t argc) { 
+    Serial.println("#+MDNS#");
+    return 0;
+  };
+};
+
+class EchoOnCommand : public AtCommandHandler {
+  const char *getName() { return "E1"; };
+  AT_COMMAND_RETURN_TYPE run(Stream *out_stream) { 
+    Serial.println("#+ATE1#");
+    return 0;
+  };
+};
+
+class EchoOffCommand : public AtCommandHandler {
+  const char *getName() { return "E0"; };
+  AT_COMMAND_RETURN_TYPE run(Stream *out_stream) { 
+    Serial.println("#+ATE0#");
+    return 0;
+  };
+};
+
+EspInfoCommand espInfo;
+GMRCommand gmr;
+CIFSRCommand cifsr;
+ATCheckCommand atCheck;
+CIPSENDCommand cipsend;
+CIPSERVERCommand cipserver;
+CIPMUXCommand cipmux;
+EchoOnCommand echon;
+EchoOffCommand echooff;
+MDNSCommand mdns;
+
+static AtCommandHandler *commands[] = {&espInfo, &gmr, &cifsr, &atCheck, &cipsend, &cipserver, &cipmux, &echon, &echooff, &mdns};
 
 void setup()
 {
     Serial.begin(115200);
     #ifdef ESP32
-      // CsSerial.begin(115200, SERIAL_8N1, RX, TX);
-      CsSerial.begin(115200);
+      CsSerial.begin(115200, SERIAL_8N1, RX, TX);
+      // CsSerial.begin(115200);
     #endif
     #ifdef ESP8266
       CsSerial.begin(115200);
     #endif
     setupWifi();
-    AT.begin(&CsSerial, commands, sizeof(commands), at_buffer);
+    AT.begin(&CsSerial, commands, sizeof(commands), at_buffer, sizeof(at_buffer));
 #ifdef WEBSOCKET_ENABLED
     wsService.setup();
 #endif
@@ -247,15 +262,15 @@ void loop()
     while (CsSerial.available() > 0)
     {
         int ch = CsSerial.read();
-        CsSerial.print((char)ch);
+        Serial.print((char)ch);
         AT.parse(ch);
     }
 
 //  AT.update();
   #ifdef WEBSOCKET_ENABLED
-  // wsService.loop();
+  wsService.loop();
   #endif
-  // tcpService.loop();
+  tcpService.loop();
   #ifdef OTA_ENABLED
   ArduinoOTA.handle();
   #endif

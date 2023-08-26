@@ -142,6 +142,7 @@ public:
       break;
     }
   }
+  Stream *serial;
 
 private:
   char *buffer;
@@ -150,8 +151,6 @@ private:
   AT_PARSER_STATE state = PREFIX_A;
   uint16_t numberOfCommands;
   AtCommandHandler **atCommands;
-
-  Stream *serial;
 
   AtCommandHandler *currentCommand = nullptr;
 
@@ -193,14 +192,14 @@ private:
 
   void handleCommandResult(AT_COMMAND_RETURN_TYPE result) {
     if (result == 0) {
-      serial->print("OK\r\n");
+      serial->print("\r\nOK\r\n");
     }
     if (result < 0) {
-      serial->print("ERROR\r\n");
+      serial->print("\r\nERROR\r\n");
     }
     if (result > 0) {
       if (result >= this->bufferSize - 1) {
-        serial->print("ERROR\r\n");
+        serial->print("\r\nERROR\r\n");
         this->error();
         return;
       }
@@ -221,7 +220,7 @@ private:
       handleCommandResult(this->currentCommand->passthrough(this->serial, this->buffer, this->numPassthroughChars));
       return;
     }
-    serial->print("ERROR\r\n");
+    serial->print("\r\nERROR\r\n");
     reset();
   }
 
@@ -231,7 +230,7 @@ private:
       handleCommandResult(this->currentCommand->run(this->serial));
       return;
     }
-    serial->print("ERROR\r\n");
+    serial->print("\r\nERROR\r\n");
     reset();
   }
 
@@ -241,7 +240,7 @@ private:
       handleCommandResult(this->currentCommand->read(this->serial));
       return;
     }
-    serial->print("ERROR\r\n");
+    serial->print("\r\nERROR\r\n");
     reset();
   }
 
@@ -251,7 +250,7 @@ private:
       handleCommandResult(this->currentCommand->test(this->serial));
       return;
     }
-    serial->print("ERROR\r\n");
+    serial->print("\r\nERROR\r\n");
     reset();
   }
 
@@ -261,7 +260,7 @@ private:
       handleCommandResult(this->currentCommand->write(this->serial, (char **)(this->args), this->num_args));
       return;
     }
-    serial->print("ERROR\r\n");
+    serial->print("\r\nERROR\r\n");
     reset();
   }
 
