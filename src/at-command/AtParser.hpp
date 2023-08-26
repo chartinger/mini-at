@@ -1,8 +1,8 @@
 #ifndef AT_PARSER_H
 #define AT_PARSER_H
 
-#include <Arduino.h>
 #include "./AtCommandHandler.hpp"
+#include <Arduino.h>
 
 typedef class AtParser AtParser;
 
@@ -143,8 +143,6 @@ public:
     }
   }
 
-  Stream *serial;
-
 private:
   char *buffer;
   uint16_t bufferSize = 0;
@@ -152,6 +150,8 @@ private:
   AT_PARSER_STATE state = PREFIX_A;
   uint16_t numberOfCommands;
   AtCommandHandler **atCommands;
+
+  Stream *serial;
 
   AtCommandHandler *currentCommand = nullptr;
 
@@ -218,7 +218,7 @@ private:
 
   void handlePassthroughEnd() {
     if (this->currentCommand != nullptr) {
-      handleCommandResult(this->currentCommand->passthrough(this, this->buffer, this->numPassthroughChars));
+      handleCommandResult(this->currentCommand->passthrough(this->serial, this->buffer, this->numPassthroughChars));
       return;
     }
     serial->print("ERROR\r\n");
@@ -228,7 +228,7 @@ private:
   void run() {
     setCommand();
     if (this->currentCommand != nullptr) {
-      handleCommandResult(this->currentCommand->run(this));
+      handleCommandResult(this->currentCommand->run(this->serial));
       return;
     }
     serial->print("ERROR\r\n");
@@ -238,7 +238,7 @@ private:
   void read() {
     setCommand();
     if (this->currentCommand != nullptr) {
-      handleCommandResult(this->currentCommand->read(this));
+      handleCommandResult(this->currentCommand->read(this->serial));
       return;
     }
     serial->print("ERROR\r\n");
@@ -248,7 +248,7 @@ private:
   void test() {
     setCommand();
     if (this->currentCommand != nullptr) {
-      handleCommandResult(this->currentCommand->test(this));
+      handleCommandResult(this->currentCommand->test(this->serial));
       return;
     }
     serial->print("ERROR\r\n");
@@ -258,7 +258,7 @@ private:
   void write() {
     setCommand();
     if (this->currentCommand != nullptr) {
-      handleCommandResult(this->currentCommand->write(this, (char **)(this->args), this->num_args));
+      handleCommandResult(this->currentCommand->write(this->serial, (char **)(this->args), this->num_args));
       return;
     }
     serial->print("ERROR\r\n");

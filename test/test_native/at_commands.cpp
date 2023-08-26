@@ -59,7 +59,7 @@ void it_supports_the_write_command(void) {
   char buffer[100];
   Mock<AtCommandHandler> commandHandlerMock;
   When(Method(commandHandlerMock, getName)).AlwaysReturn("+XY");
-  When(Method(commandHandlerMock, write)).AlwaysDo([](AtParser *at_parser, char **argv, uint16_t argc) {
+  When(Method(commandHandlerMock, write)).AlwaysDo([](Stream *out_stream, char **argv, uint16_t argc) {
     TEST_ASSERT_EQUAL_INT(4, argc);
     TEST_ASSERT_EQUAL_STRING("a", argv[0]);
     TEST_ASSERT_EQUAL_STRING("b", argv[1]);
@@ -79,7 +79,7 @@ void it_supports_the_write_command_with_empty_parameters(void) {
   char buffer[100];
   Mock<AtCommandHandler> commandHandlerMock;
   When(Method(commandHandlerMock, getName)).AlwaysReturn("+XY");
-  When(Method(commandHandlerMock, write)).AlwaysDo([](AtParser *at_parser, char **argv, uint16_t argc) {
+  When(Method(commandHandlerMock, write)).AlwaysDo([](Stream *out_stream, char **argv, uint16_t argc) {
     TEST_ASSERT_EQUAL_INT(4, argc);
     TEST_ASSERT_EQUAL_STRING("", argv[0]);
     TEST_ASSERT_EQUAL_STRING("", argv[1]);
@@ -99,11 +99,11 @@ void it_supports_the_write_command_with_passthrough(void) {
   char buffer[100];
   Mock<AtCommandHandler> commandHandlerMock;
   When(Method(commandHandlerMock, getName)).AlwaysReturn("+XY");
-  When(Method(commandHandlerMock, write)).AlwaysDo([](AtParser *at_parser, char **argv, uint16_t argc) {
+  When(Method(commandHandlerMock, write)).AlwaysDo([](Stream *out_stream, char **argv, uint16_t argc) {
     TEST_ASSERT_EQUAL_INT(1, argc);
     return 10;
   });
-  When(Method(commandHandlerMock, passthrough)).AlwaysDo([](AtParser *parser, char* data, uint16_t dataLength) {
+  When(Method(commandHandlerMock, passthrough)).AlwaysDo([](Stream *out_stream, char* data, uint16_t dataLength) {
     TEST_ASSERT_EQUAL_INT(10, dataLength);
     TEST_ASSERT_EQUAL_STRING("Hello You!", data);
     return 0;
