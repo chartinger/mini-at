@@ -4,12 +4,12 @@
 #include <Arduino.h>
 
 typedef int16_t AT_COMMAND_RETURN_TYPE;
-typedef class AtCommandHandler AtCommandHandler;
+typedef class MiniAtCommandHandler MiniAtCommandHandler;
 
-class AtCommandHandler {
+class MiniAtCommandHandler {
 public:
-  AtCommandHandler() {}
-  virtual ~AtCommandHandler() {}
+  MiniAtCommandHandler() {}
+  virtual ~MiniAtCommandHandler() {}
   virtual const char *getName() = 0;
   virtual AT_COMMAND_RETURN_TYPE run(Stream *out_stream) { return -1; };
   virtual AT_COMMAND_RETURN_TYPE test(Stream *out_stream) { return -1; };

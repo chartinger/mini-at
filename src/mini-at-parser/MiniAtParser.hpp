@@ -4,7 +4,7 @@
 #include "./AtCommandHandler.hpp"
 #include <Arduino.h>
 
-typedef class AtParser AtParser;
+typedef class MiniAtParser MiniAtParser;
 
 typedef enum {
   PREFIX_A,
@@ -22,13 +22,13 @@ typedef enum {
   PASSTHROUGH,
 } AT_PARSER_STATE;
 
-class AtParser {
+class MiniAtParser {
 public:
-  AtParser() {}
-  void begin(Stream *serial, AtCommandHandler **commands, uint32_t size, char *buffer, uint32_t bufferSize) {
+  MiniAtParser() {}
+  void begin(Stream *serial, MiniAtCommandHandler **commands, uint32_t size, char *buffer, uint32_t bufferSize) {
     this->buffer = buffer;
     this->atCommands = commands;
-    this->numberOfCommands = (uint16_t)(size / sizeof(AtCommandHandler *));
+    this->numberOfCommands = (uint16_t)(size / sizeof(MiniAtCommandHandler *));
     this->serial = serial;
     this->bufferSize = bufferSize;
     this->reset();
@@ -150,9 +150,9 @@ private:
   uint16_t bufferPosition = 0;
   AT_PARSER_STATE state = PREFIX_A;
   uint16_t numberOfCommands;
-  AtCommandHandler **atCommands;
+  MiniAtCommandHandler **atCommands;
 
-  AtCommandHandler *currentCommand = nullptr;
+  MiniAtCommandHandler *currentCommand = nullptr;
 
   uint16_t numPassthroughChars = 0;
   uint16_t remainingPassthroughChars = 0;

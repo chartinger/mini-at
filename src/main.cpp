@@ -1,7 +1,7 @@
 #include "./config.h"
 #include <Arduino.h>
 
-#include "at-command/AtParser.hpp"
+#include "mini-at-parser/MiniAtParser.hpp"
 
 #ifdef ESP32
 #include <WiFi.h>
@@ -64,7 +64,7 @@ const char* password = WLAN_PASSWORD;
 
 WiFiClient wifiClient;
 
-AtParser AT; // create an instance of the class
+MiniAtParser AT; // create an instance of the class
 const char* str1;
 const char* str2;
 int16_t payloadConnection = -1;
@@ -112,14 +112,14 @@ TcpServerService tcpService(&csAtConnection, &connectionPool, 9999);
 MqttClientService mqttService(&csAtConnection, &connectionPool, &wifiClient);
 #endif
 
-class EspInfoCommand : public AtCommandHandler {
+class EspInfoCommand : public MiniAtCommandHandler {
   const char *getName() { return "+ESPINFO"; };
   AT_COMMAND_RETURN_TYPE run(Stream *out_stream) { 
     out_stream->println(ESP.getFreeHeap());
     return 0;
   };
 };
-class GMRCommand : public AtCommandHandler {
+class GMRCommand : public MiniAtCommandHandler {
   const char *getName() { return "+GMR"; };
   AT_COMMAND_RETURN_TYPE run(Stream *out_stream) { 
     Serial.println("#GMR#");
@@ -128,7 +128,7 @@ class GMRCommand : public AtCommandHandler {
   };
 };
 
-class CIFSRCommand : public AtCommandHandler {
+class CIFSRCommand : public MiniAtCommandHandler {
   const char *getName() { return "+CIFSR"; };
   AT_COMMAND_RETURN_TYPE run(Stream *out_stream) { 
     Serial.println("#AT CIFSR#");
@@ -141,7 +141,7 @@ class CIFSRCommand : public AtCommandHandler {
   };
 };
 
-class ATCheckCommand : public AtCommandHandler {
+class ATCheckCommand : public MiniAtCommandHandler {
   const char *getName() { return ""; };
   AT_COMMAND_RETURN_TYPE run(Stream *out_stream) { 
     Serial.println("#AT REQUEST#");
@@ -149,7 +149,7 @@ class ATCheckCommand : public AtCommandHandler {
   };
 };
 
-class CIPSENDCommand : public AtCommandHandler {
+class CIPSENDCommand : public MiniAtCommandHandler {
   const char *getName() { return "+CIPSEND"; };
   AT_COMMAND_RETURN_TYPE write(Stream *out_stream, char **argv, uint16_t argc) {
     if(argc != 2) {
@@ -179,7 +179,7 @@ class CIPSENDCommand : public AtCommandHandler {
   }
 };
 
-class CIPSERVERCommand : public AtCommandHandler {
+class CIPSERVERCommand : public MiniAtCommandHandler {
   const char *getName() { return "+CIPSERVER"; };
   AT_COMMAND_RETURN_TYPE write(Stream *out_stream, char **argv, uint16_t argc) { 
     Serial.println("#CIPSERVER#");
@@ -187,7 +187,7 @@ class CIPSERVERCommand : public AtCommandHandler {
   };
 };
 
-class CIPMUXCommand : public AtCommandHandler {
+class CIPMUXCommand : public MiniAtCommandHandler {
   const char *getName() { return "+CIPMUX"; };
   AT_COMMAND_RETURN_TYPE write(Stream *out_stream, char **argv, uint16_t argc) { 
     Serial.println("#+CIPMUX#");
@@ -195,7 +195,7 @@ class CIPMUXCommand : public AtCommandHandler {
   };
 };
 
-class MDNSCommand : public AtCommandHandler {
+class MDNSCommand : public MiniAtCommandHandler {
   const char *getName() { return "+MDNS"; };
   AT_COMMAND_RETURN_TYPE write(Stream *out_stream, char **argv, uint16_t argc) { 
     Serial.println("#+MDNS#");
@@ -203,7 +203,7 @@ class MDNSCommand : public AtCommandHandler {
   };
 };
 
-class EchoOnCommand : public AtCommandHandler {
+class EchoOnCommand : public MiniAtCommandHandler {
   const char *getName() { return "E1"; };
   AT_COMMAND_RETURN_TYPE run(Stream *out_stream) { 
     Serial.println("#+ATE1#");
@@ -211,7 +211,7 @@ class EchoOnCommand : public AtCommandHandler {
   };
 };
 
-class EchoOffCommand : public AtCommandHandler {
+class EchoOffCommand : public MiniAtCommandHandler {
   const char *getName() { return "E0"; };
   AT_COMMAND_RETURN_TYPE run(Stream *out_stream) { 
     Serial.println("#+ATE0#");
@@ -230,7 +230,7 @@ EchoOnCommand echon;
 EchoOffCommand echooff;
 MDNSCommand mdns;
 
-static AtCommandHandler *commands[] = {&espInfo, &gmr, &cifsr, &atCheck, &cipsend, &cipserver, &cipmux, &echon, &echooff, &mdns};
+static MiniAtCommandHandler *commands[] = {&espInfo, &gmr, &cifsr, &atCheck, &cipsend, &cipserver, &cipmux, &echon, &echooff, &mdns};
 
 void setup()
 {
