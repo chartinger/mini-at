@@ -13,8 +13,9 @@
 #include <PubSubClient.h>
 
 #include "ClientService.hpp"
-#include "ConnectionPool.hpp"
-#include "CsAtConnection.hpp"
+#include "../pool/ConnectionPool.hpp"
+
+#include "../CsAtConnection.hpp"
 
 class MqttClientService : ClientService {
   public:

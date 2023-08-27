@@ -1,8 +1,10 @@
+#ifndef CONNECTION_POOL
+#define CONNECTION_POOL
 #ifndef CONNECTION_POOL_H
 #define CONNECTION_POOL_H
 
 #include <Arduino.h>
-#include "ClientService.hpp"
+#include "../services/ClientService.hpp"
 
 typedef struct
 {
@@ -21,5 +23,8 @@ class ConnectionPool {
 
     CONNECTION_POOL_DATA getPoolEntry(int16_t connectionId);
 };
+
+#endif
+
 
 #endif
