@@ -1,7 +1,7 @@
 #include "unity.h"
 #include <ArduinoFake.h>
 
-#include "./AtTestHelper.hpp"
+#include "./MiniAtParserTestHelper.hpp"
 
 using namespace fakeit;
 
@@ -32,10 +32,10 @@ void feedInput(MiniAtParser &parser, const char *data) {
 }
 
 void it_executes_the_run_command(void) {
-  Mock<MiniAtCommandHandler> commandHandlerMock;
+  Mock<MiniAtParserCommandHandler> commandHandlerMock;
   When(Method(commandHandlerMock, getName)).AlwaysReturn("+XY");
   When(Method(commandHandlerMock, run)).AlwaysReturn(0);
-  MiniAtCommandHandler *commands[1] = {&commandHandlerMock.get()};
+  MiniAtParserCommandHandler *commands[1] = {&commandHandlerMock.get()};
   MiniAtParser parser;
   char buffer[100];
   parser.begin(MockSerial, commands, sizeof(commands), buffer, sizeof(buffer));
@@ -45,10 +45,10 @@ void it_executes_the_run_command(void) {
 }
 
 void it_ignores_unknown_commands(void) {
-  Mock<MiniAtCommandHandler> commandHandlerMock;
+  Mock<MiniAtParserCommandHandler> commandHandlerMock;
   When(Method(commandHandlerMock, getName)).AlwaysReturn("+XY");
   When(Method(commandHandlerMock, run)).AlwaysReturn(0);
-  MiniAtCommandHandler *commands[1] = {&commandHandlerMock.get()};
+  MiniAtParserCommandHandler *commands[1] = {&commandHandlerMock.get()};
   MiniAtParser parser;
   char buffer[100];
   parser.begin(MockSerial, commands, sizeof(commands), buffer, sizeof(buffer));
@@ -60,7 +60,7 @@ void it_ignores_unknown_commands(void) {
 void it_supports_the_write_command(void) {
   MiniAtParser parser;
   char buffer[100];
-  Mock<MiniAtCommandHandler> commandHandlerMock;
+  Mock<MiniAtParserCommandHandler> commandHandlerMock;
   When(Method(commandHandlerMock, getName)).AlwaysReturn("+XY");
   When(Method(commandHandlerMock, write)).AlwaysDo([](Stream *out_stream, char **argv, uint16_t argc) {
     TEST_ASSERT_EQUAL_INT(4, argc);
@@ -70,7 +70,7 @@ void it_supports_the_write_command(void) {
     TEST_ASSERT_EQUAL_STRING("dd", argv[3]);
     return 0;
   });
-  MiniAtCommandHandler *commands[1] = {&commandHandlerMock.get()};
+  MiniAtParserCommandHandler *commands[1] = {&commandHandlerMock.get()};
   parser.begin(MockSerial, commands, sizeof(commands), buffer, sizeof(buffer));
   feedInput(parser, "AT+XY=a,b,\"cc\",dd\r\n");
   TEST_ASSERT_MOCK(Verify(Method((commandHandlerMock), write)).Exactly(1));
@@ -80,7 +80,7 @@ void it_supports_the_write_command(void) {
 void it_supports_the_write_command_with_empty_parameters(void) {
   MiniAtParser parser;
   char buffer[100];
-  Mock<MiniAtCommandHandler> commandHandlerMock;
+  Mock<MiniAtParserCommandHandler> commandHandlerMock;
   When(Method(commandHandlerMock, getName)).AlwaysReturn("+XY");
   When(Method(commandHandlerMock, write)).AlwaysDo([](Stream *out_stream, char **argv, uint16_t argc) {
     TEST_ASSERT_EQUAL_INT(4, argc);
@@ -90,7 +90,7 @@ void it_supports_the_write_command_with_empty_parameters(void) {
     TEST_ASSERT_EQUAL_STRING("", argv[3]);
     return 0;
   });
-  MiniAtCommandHandler *commands[1] = {&commandHandlerMock.get()};
+  MiniAtParserCommandHandler *commands[1] = {&commandHandlerMock.get()};
   parser.begin(MockSerial, commands, sizeof(commands), buffer, sizeof(buffer));
   feedInput(parser, "AT+XY=,,X,\r\n");
   TEST_ASSERT_MOCK(Verify(Method((commandHandlerMock), write)).Exactly(1));
@@ -100,7 +100,7 @@ void it_supports_the_write_command_with_empty_parameters(void) {
 void it_supports_the_write_command_with_passthrough(void) {
   MiniAtParser parser;
   char buffer[100];
-  Mock<MiniAtCommandHandler> commandHandlerMock;
+  Mock<MiniAtParserCommandHandler> commandHandlerMock;
   When(Method(commandHandlerMock, getName)).AlwaysReturn("+XY");
   When(Method(commandHandlerMock, write)).AlwaysDo([](Stream *out_stream, char **argv, uint16_t argc) {
     TEST_ASSERT_EQUAL_INT(1, argc);
@@ -111,7 +111,7 @@ void it_supports_the_write_command_with_passthrough(void) {
     TEST_ASSERT_EQUAL_STRING("Hello You!", data);
     return 0;
   });
-  MiniAtCommandHandler *commands[1] = {&commandHandlerMock.get()};
+  MiniAtParserCommandHandler *commands[1] = {&commandHandlerMock.get()};
   parser.begin(MockSerial, commands, sizeof(commands), buffer, sizeof(buffer));
   TEST_ASSERT_MOCK(feedInput(parser, "AT+XY=4\r\n"));
   TEST_ASSERT_MOCK(Verify(Method((commandHandlerMock), write)).Exactly(1));
@@ -124,13 +124,13 @@ void it_supports_the_write_command_with_passthrough(void) {
 void it_executes_the_base_commands(void) {
   MiniAtParser parser;
   char buffer[100];
-  Mock<MiniAtCommandHandler> commandHandlerMock;
+  Mock<MiniAtParserCommandHandler> commandHandlerMock;
   When(Method(commandHandlerMock, getName)).AlwaysReturn("+XY");
   When(Method(commandHandlerMock, run)).AlwaysReturn(0);
   When(Method(commandHandlerMock, read)).AlwaysReturn(0);
   When(Method(commandHandlerMock, write)).AlwaysReturn(0);
   When(Method(commandHandlerMock, test)).AlwaysReturn(0);
-  MiniAtCommandHandler *commands[1] = {&commandHandlerMock.get()};
+  MiniAtParserCommandHandler *commands[1] = {&commandHandlerMock.get()};
   parser.begin(MockSerial, commands, sizeof(commands), buffer, sizeof(buffer));
 
   // RUN
@@ -159,14 +159,14 @@ void it_executes_the_base_commands(void) {
 }
 
 void it_can_run_multiple_commands(void) {
-  Mock<MiniAtCommandHandler> commandHandlerMock;
+  Mock<MiniAtParserCommandHandler> commandHandlerMock;
   When(Method(commandHandlerMock, getName)).AlwaysReturn("+XY");
   When(Method(commandHandlerMock, run)).AlwaysReturn(0);
-  Mock<MiniAtCommandHandler> commandHandlerMock2;
+  Mock<MiniAtParserCommandHandler> commandHandlerMock2;
   When(Method(commandHandlerMock2, getName)).AlwaysReturn("+AB");
   When(Method(commandHandlerMock2, run)).AlwaysReturn(0);
 
-  MiniAtCommandHandler *commands[2] = {&commandHandlerMock.get(), &commandHandlerMock2.get()};
+  MiniAtParserCommandHandler *commands[2] = {&commandHandlerMock.get(), &commandHandlerMock2.get()};
 
   MiniAtParser parser;
   char buffer[100];
@@ -178,10 +178,10 @@ void it_can_run_multiple_commands(void) {
 }
 
 void it_ignores_garbage(void) {
-  Mock<MiniAtCommandHandler> commandHandlerMock;
+  Mock<MiniAtParserCommandHandler> commandHandlerMock;
   When(Method(commandHandlerMock, getName)).AlwaysReturn("+XY");
   When(Method(commandHandlerMock, run)).AlwaysReturn(0);
-  MiniAtCommandHandler *commands[1] = {&commandHandlerMock.get()};
+  MiniAtParserCommandHandler *commands[1] = {&commandHandlerMock.get()};
   MiniAtParser parser;
   char buffer[100];
   parser.begin(MockSerial, commands, sizeof(commands), buffer, sizeof(buffer));

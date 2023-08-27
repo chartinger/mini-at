@@ -112,14 +112,14 @@ TcpServerService tcpService(&csAtConnection, &connectionPool, 9999);
 MqttClientService mqttService(&csAtConnection, &connectionPool, &wifiClient);
 #endif
 
-class EspInfoCommand : public MiniAtCommandHandler {
+class EspInfoCommand : public MiniAtParserCommandHandler {
   const char *getName() { return "+ESPINFO"; };
   AT_COMMAND_RETURN_TYPE run(Stream *out_stream) { 
     out_stream->println(ESP.getFreeHeap());
     return 0;
   };
 };
-class GMRCommand : public MiniAtCommandHandler {
+class GMRCommand : public MiniAtParserCommandHandler {
   const char *getName() { return "+GMR"; };
   AT_COMMAND_RETURN_TYPE run(Stream *out_stream) { 
     Serial.println("#GMR#");
@@ -128,7 +128,7 @@ class GMRCommand : public MiniAtCommandHandler {
   };
 };
 
-class CIFSRCommand : public MiniAtCommandHandler {
+class CIFSRCommand : public MiniAtParserCommandHandler {
   const char *getName() { return "+CIFSR"; };
   AT_COMMAND_RETURN_TYPE run(Stream *out_stream) { 
     Serial.println("#AT CIFSR#");
@@ -141,7 +141,7 @@ class CIFSRCommand : public MiniAtCommandHandler {
   };
 };
 
-class ATCheckCommand : public MiniAtCommandHandler {
+class ATCheckCommand : public MiniAtParserCommandHandler {
   const char *getName() { return ""; };
   AT_COMMAND_RETURN_TYPE run(Stream *out_stream) { 
     Serial.println("#AT REQUEST#");
@@ -149,7 +149,7 @@ class ATCheckCommand : public MiniAtCommandHandler {
   };
 };
 
-class CIPSENDCommand : public MiniAtCommandHandler {
+class CIPSENDCommand : public MiniAtParserCommandHandler {
   const char *getName() { return "+CIPSEND"; };
   AT_COMMAND_RETURN_TYPE write(Stream *out_stream, char **argv, uint16_t argc) {
     if(argc != 2) {
@@ -179,7 +179,7 @@ class CIPSENDCommand : public MiniAtCommandHandler {
   }
 };
 
-class CIPSERVERCommand : public MiniAtCommandHandler {
+class CIPSERVERCommand : public MiniAtParserCommandHandler {
   const char *getName() { return "+CIPSERVER"; };
   AT_COMMAND_RETURN_TYPE write(Stream *out_stream, char **argv, uint16_t argc) { 
     Serial.println("#CIPSERVER#");
@@ -187,7 +187,7 @@ class CIPSERVERCommand : public MiniAtCommandHandler {
   };
 };
 
-class CIPMUXCommand : public MiniAtCommandHandler {
+class CIPMUXCommand : public MiniAtParserCommandHandler {
   const char *getName() { return "+CIPMUX"; };
   AT_COMMAND_RETURN_TYPE write(Stream *out_stream, char **argv, uint16_t argc) { 
     Serial.println("#+CIPMUX#");
@@ -195,7 +195,7 @@ class CIPMUXCommand : public MiniAtCommandHandler {
   };
 };
 
-class MDNSCommand : public MiniAtCommandHandler {
+class MDNSCommand : public MiniAtParserCommandHandler {
   const char *getName() { return "+MDNS"; };
   AT_COMMAND_RETURN_TYPE write(Stream *out_stream, char **argv, uint16_t argc) { 
     Serial.println("#+MDNS#");
@@ -203,7 +203,7 @@ class MDNSCommand : public MiniAtCommandHandler {
   };
 };
 
-class EchoOnCommand : public MiniAtCommandHandler {
+class EchoOnCommand : public MiniAtParserCommandHandler {
   const char *getName() { return "E1"; };
   AT_COMMAND_RETURN_TYPE run(Stream *out_stream) { 
     Serial.println("#+ATE1#");
@@ -211,7 +211,7 @@ class EchoOnCommand : public MiniAtCommandHandler {
   };
 };
 
-class EchoOffCommand : public MiniAtCommandHandler {
+class EchoOffCommand : public MiniAtParserCommandHandler {
   const char *getName() { return "E0"; };
   AT_COMMAND_RETURN_TYPE run(Stream *out_stream) { 
     Serial.println("#+ATE0#");
@@ -230,7 +230,7 @@ EchoOnCommand echon;
 EchoOffCommand echooff;
 MDNSCommand mdns;
 
-static MiniAtCommandHandler *commands[] = {&espInfo, &gmr, &cifsr, &atCheck, &cipsend, &cipserver, &cipmux, &echon, &echooff, &mdns};
+static MiniAtParserCommandHandler *commands[] = {&espInfo, &gmr, &cifsr, &atCheck, &cipsend, &cipserver, &cipmux, &echon, &echooff, &mdns};
 
 void setup()
 {
