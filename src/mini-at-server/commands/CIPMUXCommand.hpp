@@ -1,7 +1,7 @@
 #ifndef CIPMUXCOMMAND
 #define CIPMUXCOMMAND
 
-#include "../../mini-at-parser/MiniAtParserCommandHandler.hpp"
+#include "MiniAtParserCommandHandler.hpp"
 #include <Arduino.h>
 
 class CIPMUXCommand : public MiniAtParserCommandHandler {

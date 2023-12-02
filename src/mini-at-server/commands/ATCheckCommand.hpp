@@ -2,7 +2,7 @@
 #define ATCHECK_COMMAND
 
 #include <Arduino.h>
-#include "../../mini-at-parser/MiniAtParserCommandHandler.hpp"
+#include "MiniAtParserCommandHandler.hpp"
 
 class ATCheckCommand : public MiniAtParserCommandHandler {
   const char *getName() { return ""; };

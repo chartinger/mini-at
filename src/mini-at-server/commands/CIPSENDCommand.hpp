@@ -2,19 +2,18 @@
 #define CIPSEND_COMMAND_H
 
 #include <Arduino.h>
-#include "../../mini-at-parser/MiniAtParserCommandHandler.hpp"
 #include "../pool/ConnectionPool.hpp"
+#include "MiniAtParserCommandHandler.hpp"
 
 typedef class CIPSENDCommand CIPSENDCommand;
 
 class CIPSENDCommand : public MiniAtParserCommandHandler {
-public:
-  CIPSENDCommand(ConnectionPool *connectionPool): connectionPool(connectionPool) {
-  }
+ public:
+  CIPSENDCommand(ConnectionPool* connectionPool) : connectionPool(connectionPool) {}
 
-  const char *getName() { return "+CIPSEND"; };
+  const char* getName() { return "+CIPSEND"; };
 
-  AT_COMMAND_RETURN_TYPE write(Stream *out_stream, char **argv, uint16_t argc) {
+  AT_COMMAND_RETURN_TYPE write(Stream* out_stream, char** argv, uint16_t argc) {
     if (argc != 2) {
       return -1;
     }
@@ -27,7 +26,7 @@ public:
     return payloadLength;
   };
 
-  AT_COMMAND_RETURN_TYPE passthrough(Stream *out_stream, char *data, uint16_t dataLength) {
+  AT_COMMAND_RETURN_TYPE passthrough(Stream* out_stream, char* data, uint16_t dataLength) {
     if (passthroughConnectionIndex >= 0) {
       auto poolEntry = (this->connectionPool)->getPoolEntry(passthroughConnectionIndex);
       if (poolEntry.clientService != nullptr) {
@@ -42,9 +41,9 @@ public:
     return 0;
   }
 
-private:
+ private:
   int16_t passthroughConnectionIndex = -1;
-  ConnectionPool *connectionPool;
+  ConnectionPool* connectionPool;
 };
 
 #endif

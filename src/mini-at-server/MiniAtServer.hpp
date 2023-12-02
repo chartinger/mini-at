@@ -10,7 +10,7 @@
 #include <ESP8266WiFi.h>
 #endif
 
-#include "../mini-at-parser/MiniAtParser.hpp"
+#include "MiniAtParser.hpp"
 
 #include "./commands/ATCheckCommand.hpp"
 #include "./commands/CIFSRCommand.hpp"
@@ -23,25 +23,25 @@
 #include "./commands/MDNSCommand.hpp"
 #include "./pool/ConnectionPool.hpp"
 
-#include "./services/WsServerService.hpp"
 #include "./services/TcpServerService.hpp"
+#include "./services/WsServerService.hpp"
 #include "CsAtConnection.hpp"
 
 typedef class MiniAtServer MiniAtServer;
 
 class MiniAtServer {
-public:
+ public:
   MiniAtServer() {}
-  MiniAtServer(const MiniAtServer &) = delete;
-  MiniAtServer &operator=(const MiniAtServer &) = delete;
+  MiniAtServer(const MiniAtServer&) = delete;
+  MiniAtServer& operator=(const MiniAtServer&) = delete;
 
-  void begin(Stream *stream);
+  void begin(Stream* stream);
   void loop();
 
-private:
+ private:
   char at_buffer[256];
   bool echo = false;
-  Stream *stream;
+  Stream* stream;
   ConnectionPool connectionPool;
   MiniAtParser atParser;
   CsAtConnection csAtConnection = CsAtConnection(&atParser);
@@ -59,7 +59,7 @@ private:
   MDNSCommand mdns;
   EspInfoCommand espInfo;
 
-  MiniAtParserCommandHandler *commands[10] = {
+  MiniAtParserCommandHandler* commands[10] = {
       &cipsend, &atCheck, &cifsr, &gmr, &cipserver, &cipmux, &echon, &echooff, &mdns, &espInfo,
   };
 };

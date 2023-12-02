@@ -23,17 +23,17 @@
 #include "../CsAtConnection.hpp"
 
 class TcpServerService : ClientService {
-public:
-  TcpServerService(CsAtConnection *csAtConnection, ConnectionPool *connectionPool, uint16_t port);
+ public:
+  TcpServerService(CsAtConnection* csAtConnection, ConnectionPool* connectionPool, uint16_t port);
   virtual ~TcpServerService();
   virtual void setup();
   virtual void loop();
-  virtual void send(void *clientData, const char *data);
+  virtual void send(void* clientData, const char* data);
 
-private:
+ private:
   AsyncServer tcpServer;
-  ConnectionPool *_connectionPool;
-  CsAtConnection *csConnection;
+  ConnectionPool* _connectionPool;
+  CsAtConnection* csConnection;
 };
 
 #endif

@@ -2,7 +2,7 @@
 #define GMRCOMMAND
 
 #include <Arduino.h>
-#include "../../mini-at-parser/MiniAtParserCommandHandler.hpp"
+#include "MiniAtParserCommandHandler.hpp"
 
 class GMRCommand : public MiniAtParserCommandHandler {
   const char *getName() { return "+GMR"; };

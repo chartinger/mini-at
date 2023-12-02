@@ -1,7 +1,7 @@
 #ifndef CIPSERVERCOMMAND
 #define CIPSERVERCOMMAND
 
-#include "../../mini-at-parser/MiniAtParserCommandHandler.hpp"
+#include "MiniAtParserCommandHandler.hpp"
 #include <Arduino.h>
 
 class CIPSERVERCommand : public MiniAtParserCommandHandler {

@@ -1,6 +1,6 @@
 #include "./MiniAtServer.hpp"
 
-void MiniAtServer::begin(Stream *stream) {
+void MiniAtServer::begin(Stream* stream) {
   this->stream = stream;
   this->atParser.begin(stream, commands, sizeof(commands), at_buffer, sizeof(at_buffer));
   tcpService.setup();

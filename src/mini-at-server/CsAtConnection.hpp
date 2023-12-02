@@ -1,7 +1,7 @@
 #ifndef CS_AT_CONNECTION_H
 #define CS_AT_CONNECTION_H
 
-#include "../mini-at-parser/MiniAtParser.hpp"
+#include "MiniAtParser.hpp"
 
 class CsAtConnection {
   public:

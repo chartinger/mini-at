@@ -10,7 +10,7 @@
 #include <ESP8266WiFi.h>
 #endif
 
-#include "../../mini-at-parser/MiniAtParserCommandHandler.hpp"
+#include "MiniAtParserCommandHandler.hpp"
 
 class MiniAtServer;
 

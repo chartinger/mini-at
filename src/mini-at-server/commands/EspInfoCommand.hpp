@@ -2,7 +2,7 @@
 #define ESP_INFO_COMMAND
 
 #include <Arduino.h>
-#include "../../mini-at-parser/MiniAtParserCommandHandler.hpp"
+#include "MiniAtParserCommandHandler.hpp"
 
 class EspInfoCommand : public MiniAtParserCommandHandler {
   const char *getName() { return "+ESPINFO"; };

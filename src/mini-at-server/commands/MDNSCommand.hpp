@@ -1,7 +1,7 @@
 #ifndef MDNSCOMMAND
 #define MDNSCOMMAND
 
-#include "../../mini-at-parser/MiniAtParserCommandHandler.hpp"
+#include "MiniAtParserCommandHandler.hpp"
 #include <Arduino.h>
 
 class MDNSCommand : public MiniAtParserCommandHandler {

@@ -1,7 +1,7 @@
 #ifndef ECHO_COMMANDS
 #define ECHO_COMMANDS
 
-#include "../../mini-at-parser/MiniAtParserCommandHandler.hpp"
+#include "MiniAtParserCommandHandler.hpp"
 #include <Arduino.h>
 
 class EchoOnCommand : public MiniAtParserCommandHandler {
